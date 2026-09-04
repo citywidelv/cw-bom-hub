@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>Background Checks | CW BOM Hub</title>
-<!-- build 2026-09-04a. The Business Operations Manager's review desk for IC background
+<!-- build 2026-09-04b. The Business Operations Manager's review desk for IC background
 checks. Reads and writes the "Background checks Las Vegas" / "Background checks Northern
 Nevada" tabs of the CW Vendor Directory sheet through VendorDirectory.gs
 (kinds vd_list, vd_bc_rows, vd_bc_upsert). Result Pass/Fail/Pending is the BOM's call;
@@ -19,7 +19,13 @@ directory only ever shows people who are cleared and not failed. -->
 /* add-a-person bar */
 .addbar{position:relative;z-index:5;margin-top:-46px}
 .addbar .qcard{padding:16px 18px 14px}
-.addrow{display:grid;grid-template-columns:2.2fr 1fr 1fr 1fr 1.1fr auto;gap:10px;align-items:end}
+.addrow{display:grid;grid-template-columns:2fr 1fr 1fr 1fr 1.05fr 1.1fr auto;gap:10px;align-items:end}
+.queue{margin-top:16px;background:var(--black);color:#fff;border-radius:14px;box-shadow:var(--shadow);padding:16px 20px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;border-left:6px solid var(--gold)}
+.queue .qn{font-size:30px;font-weight:700;color:var(--gold);line-height:1}
+.queue .qt{flex:1;min-width:260px;font-size:12.5px;color:#e6e4e1}
+.queue .qt b{color:#fff;display:block;font-size:14px;margin-bottom:2px}
+.grid2{grid-template-columns:minmax(0,1fr) 300px}
+.srcpill{display:inline-block;font-size:9.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;border-radius:8px;padding:1px 7px;margin-left:6px;background:var(--blue-bg);color:var(--blue)}
 .addrow .field label{margin-bottom:4px}
 .addrow .field input,.addrow .field select{padding:10px 11px}
 .addhint{font-size:11.5px;color:var(--grey);margin-top:9px;display:flex;gap:14px;flex-wrap:wrap;align-items:center}
@@ -58,6 +64,7 @@ directory only ever shows people who are cleared and not failed. -->
 .tbl tr.person:hover td{background:#fffbf2}
 .tbl tr.busy td{opacity:.55}
 .tbl .nm{font-weight:700;white-space:nowrap}
+.res-cell{white-space:nowrap}
 .tbl .nm small{display:block;font-weight:400;font-size:11px;color:var(--grey)}
 .tbl .muted{color:var(--grey);font-size:12px;white-space:nowrap}
 .tbl select.inl{font-size:12px;border:1.5px solid var(--border);border-radius:7px;padding:5px 7px;background:#fff}
@@ -115,7 +122,8 @@ directory only ever shows people who are cleared and not failed. -->
 <div class="field"><label>First name</label><input id="a_first" placeholder="First"></div>
 <div class="field"><label>Last name</label><input id="a_last" placeholder="Last"></div>
 <div class="field"><label>Check type</label><select id="a_type"><option value="Standard">Standard</option><option value="10-Year">10-Year (Arroweye)</option><option value="Standard + 10-Year">Standard + 10-Year</option></select></div>
-<div class="field"><label>Result</label><select id="a_result"><option value="">Sent, not back yet</option><option value="Pass">Pass</option><option value="Fail">Fail</option><option value="Pending">Pending review</option></select></div>
+<div class="field"><label>Who ran it</label><select id="a_source"><option value="City Wide">City Wide (Verified First)</option><option value="Vendor submitted">Vendor submitted</option></select></div>
+<div class="field"><label>Result</label><select id="a_result"><option value="">Not reviewed yet</option><option value="Pass">Passed</option><option value="Fail">Failed</option><option value="Pending">Pending</option></select></div>
 <div class="field"><label>&nbsp;</label><button class="btn solid" id="a_go">Add person</button></div>
 </div>
 <div class="addhint">
@@ -126,6 +134,8 @@ directory only ever shows people who are cleared and not failed. -->
 </div>
 </div>
 </div>
+
+<div class="wrap" id="queuewrap"></div>
 
 <div class="wrap section">
 <div class="stats" id="stats"></div>
@@ -138,17 +148,19 @@ directory only ever shows people who are cleared and not failed. -->
 <div class="seg" id="f_mk"><button data-v="" class="on">All markets</button><button data-v="lv">Las Vegas</button><button data-v="nnv">Northern Nevada</button></div>
 <div class="seg" id="f_res"><button data-v="" class="on">All results</button><button data-v="Pass">Pass</button><button data-v="Fail">Fail</button><button data-v="Pending">Pending</button><button data-v="none">Not reviewed</button></div>
 <div class="seg" id="f_type"><button data-v="" class="on">All checks</button><button data-v="std">Standard</button><button data-v="ten">10-Year</button></div>
+<div class="seg" id="f_src"><button data-v="" class="on">Any source</button><button data-v="City Wide">City Wide</button><button data-v="Vendor submitted">Vendor submitted</button></div>
 <select id="f_vendor"><option value="">Every vendor</option></select>
 <div class="srch"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><input id="f_q" type="search" placeholder="Search a name or vendor" autocomplete="off"></div>
 </div>
 <div class="showing" id="showing"></div>
 <div class="tblwrap"><div id="list" class="loading"><span class="spin"></span>Loading the roster...</div></div>
 <div class="legend">
-<span class="pill pass">Pass</span> cleared and shown on the Ops Hub &nbsp;
-<span class="pill fail">Fail</span> removed from the Ops Hub, kept here as history &nbsp;
-<span class="pill pend">Pending</span> waiting on a decision &nbsp;
-<span class="pill todo">Not reviewed</span> a check is on file, no result recorded yet &nbsp;
-<span class="pill ten">10-Year</span> the package Arroweye requires
+<span class="pill pass">Passed</span> cleared and shown on the Ops Hub &nbsp;
+<span class="pill fail">Failed</span> removed from the Ops Hub, kept here as history &nbsp;
+<span class="pill pend">Pending</span> check ordered or waiting on a decision &nbsp;
+<span class="pill todo">Not reviewed</span> a Verified First order is on file, no result recorded yet &nbsp;
+<span class="pill ten">10-Year</span> the package Arroweye requires &nbsp;
+<span class="srcpill" style="margin-left:0">Vendor submitted</span> the vendor uploaded a passing check they ran themselves
 </div>
 </div>
 
@@ -192,7 +204,8 @@ directory only ever shows people who are cleared and not failed. -->
 (function(){
 var esc = BOM.esc, api = BOM.api, toast = BOM.toast;
 var VENDORS = [], BYID = {}, ROWS = [], TYPES = [];
-var F = { mk:"", res:"", type:"", vendor:"", q:"" };
+var F = { mk:"", res:"", type:"", src:"", vendor:"", q:"" };
+var SOURCES = ["City Wide","Vendor submitted"];
 
 /* ---------- load ---------- */
 function load(){
@@ -205,6 +218,7 @@ function load(){
     VENDORS.forEach(function(v){ BYID[v.vendor_id] = v; });
     ROWS = bc.rows || [];
     TYPES = bc.types || ["Standard","10-Year","Standard + 10-Year"];
+    SOURCES = bc.sources || SOURCES;
     ROWS.forEach(function(r){ r._key = r.market + ":" + r.row; });
     fillVendorInputs();
     render();
@@ -235,16 +249,23 @@ function parseVendor(text){
 /* ---------- stats + filters ---------- */
 function resKey(r){ return r.result || "none"; }
 function render(){
-  var n = { total:ROWS.length, pass:0, fail:0, pend:0, none:0, unm:0, ten:0 };
+  var n = { total:ROWS.length, pass:0, fail:0, pend:0, none:0, unm:0, ten:0, sub:0 };
   ROWS.forEach(function(r){
     if(r.result === "Pass") n.pass++; else if(r.result === "Fail") n.fail++; else if(r.result === "Pending") n.pend++; else n.none++;
     if(!r.matched) n.unm++;
     if(/10-Year/.test(r.check_type)) n.ten++;
+    if(r.source === "Vendor submitted") n.sub++;
   });
+  document.getElementById("queuewrap").innerHTML = n.none ? '<div class="queue"><div class="qn">' + n.none + '</div><div class="qt"><b>Verified First checks with no result recorded</b>' +
+    'These came over from the Verified First roster as "on file". Each one needs a call: Passed, Failed, or Pending. Vendors see the result in their next background check notice, so work through the list.</div>' +
+    '<button class="btn solid" id="startq" type="button">Review the queue</button></div>' : '';
+  var sq = document.getElementById("startq");
+  if(sq) sq.addEventListener("click", function(){ F.res = "none"; F.type = ""; F.vendor = ""; F.src = ""; syncSeg("f_res","none"); syncSeg("f_type",""); syncSeg("f_src",""); document.getElementById("f_vendor").value = ""; renderList(); document.getElementById("listcard").scrollIntoView({ behavior:"smooth" }); });
   document.getElementById("stats").innerHTML =
     tile("", n.total, "On file", "") + tile("pass", n.pass, "Passed", "Pass") + tile("fail", n.fail, "Failed", "Fail") +
     tile("pend", n.pend, "Pending", "Pending") + tile("todo", n.none, "Not reviewed", "none") +
     '<a class="stat" href="#" data-type="ten"><div class="n">' + n.ten + '</div><div class="l">10-Year on file</div></a>' +
+    '<a class="stat" href="#" data-src="Vendor submitted"><div class="n" style="color:var(--blue)">' + n.sub + '</div><div class="l">Vendor submitted</div></a>' +
     '<a class="stat" href="#" data-unm="1"><div class="n" style="color:var(--amber)">' + n.unm + '</div><div class="l">Not matched</div></a>';
   document.getElementById("unm_n").textContent = n.unm + " people";
   renderList();
@@ -254,21 +275,22 @@ function tile(cls, num, label, res){
 }
 document.getElementById("stats").addEventListener("click", function(e){
   var a = e.target.closest("a.stat"); if(!a) return; e.preventDefault();
-  F.res = ""; F.type = ""; F.vendor = "";
+  F.res = ""; F.type = ""; F.vendor = ""; F.src = "";
   if(a.dataset.res !== undefined) F.res = a.dataset.res;
   if(a.dataset.type) F.type = a.dataset.type;
+  if(a.dataset.src) F.src = a.dataset.src;
   if(a.dataset.unm) F.vendor = "__unmatched";
-  syncSeg("f_res", F.res); syncSeg("f_type", F.type); document.getElementById("f_vendor").value = F.vendor;
+  syncSeg("f_res", F.res); syncSeg("f_type", F.type); syncSeg("f_src", F.src); document.getElementById("f_vendor").value = F.vendor;
   renderList();
   document.getElementById("listcard").scrollIntoView({ behavior:"smooth", block:"start" });
 });
 function syncSeg(id, val){
   document.querySelectorAll("#" + id + " button").forEach(function(b){ b.classList.toggle("on", b.dataset.v === val); });
 }
-["f_mk","f_res","f_type"].forEach(function(id){
+["f_mk","f_res","f_type","f_src"].forEach(function(id){
   document.getElementById(id).addEventListener("click", function(e){
     var b = e.target.closest("button"); if(!b) return;
-    var key = id === "f_mk" ? "mk" : id === "f_res" ? "res" : "type";
+    var key = id === "f_mk" ? "mk" : id === "f_res" ? "res" : id === "f_src" ? "src" : "type";
     F[key] = b.dataset.v; syncSeg(id, F[key]); renderList();
   });
 });
@@ -285,6 +307,7 @@ function visible(){
     if(F.res && resKey(r) !== F.res) return false;
     if(F.type === "ten" && !/10-Year/.test(r.check_type)) return false;
     if(F.type === "std" && r.check_type !== "Standard") return false;
+    if(F.src && (r.source || "City Wide") !== F.src) return false;
     if(F.vendor === "__unmatched"){ if(r.matched) return false; }
     else if(F.vendor && r.vendor_id !== F.vendor) return false;
     if(F.q){
@@ -302,8 +325,8 @@ function renderList(){
   document.getElementById("showing").innerHTML = "Showing <b>" + rows.length + "</b> of " + ROWS.length + " people" +
     (F.mk || F.res || F.type || F.vendor || F.q ? ' &middot; <a href="#" id="clearf">clear filters</a>' : "");
   var cf = document.getElementById("clearf");
-  if(cf) cf.addEventListener("click", function(e){ e.preventDefault(); F = { mk:"", res:"", type:"", vendor:"", q:"" };
-    syncSeg("f_mk",""); syncSeg("f_res",""); syncSeg("f_type",""); document.getElementById("f_vendor").value = ""; document.getElementById("f_q").value = ""; renderList(); });
+  if(cf) cf.addEventListener("click", function(e){ e.preventDefault(); F = { mk:"", res:"", type:"", src:"", vendor:"", q:"" };
+    syncSeg("f_mk",""); syncSeg("f_res",""); syncSeg("f_type",""); syncSeg("f_src",""); document.getElementById("f_vendor").value = ""; document.getElementById("f_q").value = ""; renderList(); });
   if(!rows.length){
     host.className = ""; host.innerHTML = '<div class="empty"><b>Nobody matches.</b>Change a filter, or add a person at the top of the page.</div>'; return;
   }
@@ -314,7 +337,7 @@ function renderList(){
     var na = (a.last_name + " " + a.first_name).toLowerCase(), nb = (b.last_name + " " + b.first_name).toLowerCase();
     return na < nb ? -1 : na > nb ? 1 : 0;
   });
-  var html = '<table class="tbl"><thead><tr><th>Person</th><th>Check</th><th>Result</th><th>Checked</th><th>Reviewed</th><th>Notes</th></tr></thead><tbody>';
+  var html = '<table class="tbl"><thead><tr><th>Person</th><th>Check</th><th>Who ran it</th><th>Result</th><th>Reviewed</th><th>Notes</th></tr></thead><tbody>';
   var lastV = null;
   rows.forEach(function(r){
     var vkey = r.matched ? r.vendor_id : "unm:" + (r.vendor || r.roster_company_as_typed);
@@ -344,14 +367,19 @@ function rowHtml(r){
     '<button class="pass' + (rk === "Pass" ? " on" : "") + '" data-act="res" data-v="Pass" title="Pass">Pass</button>' +
     '<button class="fail' + (rk === "Fail" ? " on" : "") + '" data-act="res" data-v="Fail" title="Fail">Fail</button>' +
     '<button class="pend' + (rk === "Pending" ? " on" : "") + '" data-act="res" data-v="Pending" title="Pending">Pend</button></div>' +
-    (rk === "none" ? ' <span class="pill todo" style="margin-left:6px">Not reviewed</span>' : '');
+    (rk === "none" ? ' <span class="pill todo" style="margin-left:6px">Not reviewed</span>' :
+     rk === "Pass" ? ' <span class="pill pass" style="margin-left:6px">Passed' + (r.source === "Vendor submitted" ? ", vendor submitted" : "") + '</span>' :
+     rk === "Fail" ? ' <span class="pill fail" style="margin-left:6px">Failed</span>' : ' <span class="pill pend" style="margin-left:6px">Pending</span>');
+  var srcSel = '<select class="inl" data-act="src" data-key="' + esc(r._key) + '">' + SOURCES.map(function(t){
+    return '<option value="' + esc(t) + '"' + (t === (r.source || "City Wide") ? " selected" : "") + '>' + esc(t === "City Wide" ? "City Wide (VF)" : "Vendor submitted") + '</option>';
+  }).join("") + '</select>';
   var attach = r.matched ? "" : '<div class="attach" style="margin-top:5px"><input list="vendorlist" placeholder="Attach to a vendor..." data-act="attach" data-key="' + esc(r._key) + '" autocomplete="off"></div>';
   return '<tr class="person" data-key="' + esc(r._key) + '">' +
     '<td><div class="nm">' + esc(r.last_name) + ', ' + esc(r.first_name) +
-      (r.vf_file_no ? '<small>Verified First ' + esc(r.vf_file_no) + '</small>' : '') + '</div>' + attach + '</td>' +
+      '<small>' + (r.vf_file_no ? 'Verified First ' + esc(r.vf_file_no) + (r.most_recent_check ? ' &middot; ' : '') : '') + (r.most_recent_check ? 'checked ' + esc(BOM.fmtDate(r.most_recent_check)) : '') + '</small></div>' + attach + '</td>' +
     '<td>' + typeSel + (/10-Year/.test(r.check_type) ? ' <span class="pill ten">10-Yr</span>' : '') + '</td>' +
+    '<td>' + srcSel + '</td>' +
     '<td>' + res + '</td>' +
-    '<td class="muted">' + esc(BOM.fmtDate(r.most_recent_check) || "") + '</td>' +
     '<td class="muted">' + (r.result_date ? esc(BOM.fmtDate(r.result_date)) + (r.reviewed_by ? '<br><small>' + esc(r.reviewed_by) + '</small>' : '') : '') + '</td>' +
     '<td><div class="notetxt" title="' + esc(r.notes) + '">' + esc(r.notes) + '</div><button class="notesbtn" data-act="note" data-key="' + esc(r._key) + '">' + (r.notes ? "edit note" : "add a note") + '</button></td></tr>';
 }
@@ -386,7 +414,7 @@ document.getElementById("list").addEventListener("click", function(e){
     var v = b.dataset.v;
     if(v === "Fail" && r.result !== "Fail" && !confirm("Mark " + r.first_name + " " + r.last_name + " as FAILED? They come off the Ops Hub directory for " + r.vendor + " right away.")) return;
     if(r.result === v) v = "";   // click the lit button again to clear the result
-    patch(r, { result: v }, v ? (r.first_name + " " + r.last_name + ": " + v) : "Result cleared");
+    patch(r, { result: v }, v ? (r.first_name + " " + r.last_name + ": " + (v === "Pass" ? "Passed" : v === "Fail" ? "Failed" : "Pending")) : "Result cleared");
   }
   if(b.dataset.act === "note"){
     var r2 = findRow(b.dataset.key); if(!r2) return;
@@ -398,6 +426,7 @@ document.getElementById("list").addEventListener("click", function(e){
 document.getElementById("list").addEventListener("change", function(e){
   var el = e.target;
   if(el.dataset.act === "type"){ var r = findRow(el.dataset.key); if(r) patch(r, { check_type: el.value }, "Check type saved"); }
+  if(el.dataset.act === "src"){ var r3 = findRow(el.dataset.key); if(r3) patch(r3, { source: el.value }, el.value === "Vendor submitted" ? "Marked as a vendor-submitted check" : "Marked as a City Wide check"); }
   if(el.dataset.act === "attach"){
     var r2 = findRow(el.dataset.key), v = parseVendor(el.value);
     if(!r2) return;
@@ -433,6 +462,7 @@ document.getElementById("a_go").addEventListener("click", function(){
   if(bad){ toast("Vendor, first name and last name are needed", "err"); return; }
   var mk = v ? (v.region === "Northern Nevada" ? "nnv" : v.region === "Both" ? aMk.value : "lv") : aMk.value;
   var row = { market:mk, first_name:first, last_name:last, check_type:document.getElementById("a_type").value,
+              source:document.getElementById("a_source").value,
               result:document.getElementById("a_result").value, notes:"Added on the BOM Hub " + new Date().toISOString().slice(0,10) + "." };
   if(v){ row.vendor_id = v.vendor_id; row.vendor = v.dba_name; } else { row.vendor = aV.value.trim(); row.roster_company_as_typed = aV.value.trim(); }
   var btn = this; btn.disabled = true; btn.textContent = "Adding...";
