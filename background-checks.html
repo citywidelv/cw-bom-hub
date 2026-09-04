@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Background Checks | CW BOM Hub</title>
+<!-- build 2026-09-04a. The Business Operations Manager's review desk for IC background
+checks. Reads and writes the "Background checks Las Vegas" / "Background checks Northern
+Nevada" tabs of the CW Vendor Directory sheet through VendorDirectory.gs
+(kinds vd_list, vd_bc_rows, vd_bc_upsert). Result Pass/Fail/Pending is the BOM's call;
+the script maps it onto status (Cleared/Removed/Pending) so the Ops Hub vendor
+directory only ever shows people who are cleared and not failed. -->
+<link rel="stylesheet" href="bom.css">
+<link rel="icon" href="https://citywidelv.github.io/cw-ops-desk/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="https://citywidelv.github.io/cw-ops-desk/favicon-32x32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://citywidelv.github.io/cw-ops-desk/apple-touch-icon.png">
+<style>
+/* add-a-person bar */
+.addbar{position:relative;z-index:5;margin-top:-46px}
+.addbar .qcard{padding:16px 18px 14px}
+.addrow{display:grid;grid-template-columns:2.2fr 1fr 1fr 1fr 1.1fr auto;gap:10px;align-items:end}
+.addrow .field label{margin-bottom:4px}
+.addrow .field input,.addrow .field select{padding:10px 11px}
+.addhint{font-size:11.5px;color:var(--grey);margin-top:9px;display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.addhint b{color:var(--black)}
+.addhint .who{display:inline-flex;align-items:center;gap:6px}
+.addhint .who input{font-size:11.5px;border:1px solid var(--border);border-radius:6px;padding:4px 8px;width:150px}
+.addhint .mk{display:inline-flex;align-items:center;gap:4px}
+.vhit{font-size:11px;font-weight:700;margin-top:4px;min-height:14px}
+.vhit.ok{color:var(--green)}
+.vhit.warn{color:var(--amber)}
+@media(max-width:980px){.addrow{grid-template-columns:1fr 1fr}.addrow .field.v{grid-column:1/-1}}
+
+/* filters */
+.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:12px 18px;border-bottom:1px solid var(--border)}
+.seg{display:inline-flex;border:1.5px solid var(--border);border-radius:9px;overflow:hidden;background:#fff}
+.seg button{border:none;background:none;font-size:11.5px;font-weight:700;padding:7px 11px;cursor:pointer;color:var(--grey);white-space:nowrap}
+.seg button.on{background:var(--black);color:#fff}
+.seg button:hover:not(.on){background:var(--light);color:var(--black)}
+.filters select{font-size:12px;border:1.5px solid var(--border);border-radius:9px;padding:7px 9px;background:#fff;max-width:260px}
+.filters .srch{position:relative;margin-left:auto;min-width:220px}
+.filters .srch svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--grey)}
+.filters .srch input{width:100%;font-size:12.5px;border:1.5px solid var(--border);border-radius:16px;padding:8px 12px 8px 32px;background:var(--light);outline:none}
+.filters .srch input:focus{border-color:var(--red);background:#fff}
+.showing{font-size:11.5px;color:var(--grey);padding:8px 18px;border-bottom:1px solid var(--light)}
+.showing b{color:var(--black)}
+
+/* table */
+.tbl{width:100%;border-collapse:collapse}
+.tbl th{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--grey);text-align:left;padding:10px 12px;border-bottom:1px solid var(--border);white-space:nowrap;background:#fff;position:sticky;top:0;z-index:2}
+.tbl td{padding:9px 12px;border-bottom:1px solid var(--light);vertical-align:middle;font-size:13px}
+.tbl tr.grp td{background:var(--light);font-weight:700;font-size:12.5px;padding:9px 12px;border-bottom:1px solid var(--border);border-top:1px solid var(--border)}
+.tbl tr.grp .gv{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.tbl tr.grp .gv .cnt{font-size:11px;color:var(--grey);font-weight:700}
+.tbl tr.grp .gv a{font-size:11px;color:var(--grey);text-decoration:none;font-weight:700;margin-left:auto}
+.tbl tr.grp .gv a:hover{color:var(--red)}
+.tbl tr.person:hover td{background:#fffbf2}
+.tbl tr.busy td{opacity:.55}
+.tbl .nm{font-weight:700;white-space:nowrap}
+.tbl .nm small{display:block;font-weight:400;font-size:11px;color:var(--grey)}
+.tbl .muted{color:var(--grey);font-size:12px;white-space:nowrap}
+.tbl select.inl{font-size:12px;border:1.5px solid var(--border);border-radius:7px;padding:5px 7px;background:#fff}
+.res{display:inline-flex;border:1.5px solid var(--border);border-radius:9px;overflow:hidden;background:#fff}
+.res button{border:none;background:none;font-size:11px;font-weight:700;padding:6px 10px;cursor:pointer;color:var(--grey);letter-spacing:.04em;text-transform:uppercase}
+.res button + button{border-left:1px solid var(--border)}
+.res button:hover{background:var(--light);color:var(--black)}
+.res button.pass.on{background:var(--green);color:#fff}
+.res button.fail.on{background:var(--red);color:#fff}
+.res button.pend.on{background:var(--gold);color:var(--black)}
+.notesbtn{border:none;background:none;color:var(--grey);cursor:pointer;font-size:11.5px;text-decoration:underline dotted;padding:0}
+.notesbtn:hover{color:var(--red)}
+.notetxt{font-size:11.5px;color:var(--grey);max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.attach{display:flex;gap:6px;align-items:center}
+.attach input{font-size:11.5px;border:1.5px solid var(--amber);border-radius:7px;padding:5px 8px;width:220px;background:var(--amber-bg)}
+.unm{font-size:11px;color:var(--amber);font-weight:700}
+.empty{text-align:center;color:var(--grey);padding:40px 20px;font-size:13px}
+.empty b{display:block;color:var(--black);font-size:15px;margin-bottom:6px}
+.tblwrap{overflow-x:auto}
+.legend{font-size:11.5px;color:var(--grey);padding:12px 18px;border-top:1px solid var(--border);line-height:1.8}
+.legend .pill{margin-right:4px}
+.loading{padding:40px;text-align:center;color:var(--grey);font-size:13px}
+.spin{display:inline-block;width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--red);border-radius:50%;animation:sp .8s linear infinite;vertical-align:middle;margin-right:8px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.side .card{margin-bottom:14px}
+.side p{font-size:12.5px;color:var(--grey)}
+.side ul{list-style:none;margin-top:6px}
+.side li{font-size:12.5px;padding:5px 0;border-bottom:1px solid var(--light);display:flex;gap:8px;align-items:center}
+.side li:last-child{border-bottom:none}
+.side li b{color:var(--black)}
+.side .btn{width:100%;justify-content:center;margin-top:8px}
+</style>
+</head>
+<body>
+<div id="gate" class="gate"></div>
+<div id="app" class="hidden">
+<header class="head" id="bomhead"></header>
+
+<section class="hero slim">
+<div class="bg" style="background-image:url('https://citywidelv.github.io/cw-ops-desk/images/fsm-team.jpg')"></div>
+<div class="wrap">
+<div class="htext">
+<div class="kick">Business Operations Management</div>
+<h1>Background Checks</h1>
+<p>Record a pass or fail for every person a vendor puts in a City Wide building. Cleared people show on the Ops Hub vendor directory; failed people never do.</p>
+</div>
+</div>
+</section>
+
+<div class="wrap addbar" id="add">
+<div class="qcard">
+<div class="qhead"><span class="bar-accent"></span><h2>Add a person</h2><span style="margin-left:auto;font-size:11px;color:var(--grey)">Pick the vendor, type the name, choose the check, done.</span></div>
+<div class="addrow">
+<div class="field v"><label>Vendor</label><input id="a_vendor" list="vendorlist" placeholder="Start typing a vendor name..." autocomplete="off"><datalist id="vendorlist"></datalist><div class="vhit" id="a_vhit"></div></div>
+<div class="field"><label>First name</label><input id="a_first" placeholder="First"></div>
+<div class="field"><label>Last name</label><input id="a_last" placeholder="Last"></div>
+<div class="field"><label>Check type</label><select id="a_type"><option value="Standard">Standard</option><option value="10-Year">10-Year (Arroweye)</option><option value="Standard + 10-Year">Standard + 10-Year</option></select></div>
+<div class="field"><label>Result</label><select id="a_result"><option value="">Sent, not back yet</option><option value="Pass">Pass</option><option value="Fail">Fail</option><option value="Pending">Pending review</option></select></div>
+<div class="field"><label>&nbsp;</label><button class="btn solid" id="a_go">Add person</button></div>
+</div>
+<div class="addhint">
+<span class="mk">Market: <b id="a_market">from the vendor</b> <select id="a_mk" class="hidden" style="font-size:11.5px;border:1px solid var(--border);border-radius:6px;padding:3px 6px"><option value="lv">Las Vegas</option><option value="nnv">Northern Nevada</option></select></span>
+<span class="who">Reviewed by <input id="a_who" placeholder="Your name"></span>
+<span>Vendor not on the list? <a href="https://citywidelv.github.io/cw-ops-desk/vendor-add.html" target="_blank" rel="noopener">Add the vendor first</a>, then come back.</span>
+<button class="btn sm" id="openform" type="button" style="margin-left:auto">Request or upload a check (vendor form)</button>
+</div>
+</div>
+</div>
+
+<div class="wrap section">
+<div class="stats" id="stats"></div>
+</div>
+
+<div class="wrap">
+<div class="grid2">
+<div class="card" id="listcard">
+<div class="filters">
+<div class="seg" id="f_mk"><button data-v="" class="on">All markets</button><button data-v="lv">Las Vegas</button><button data-v="nnv">Northern Nevada</button></div>
+<div class="seg" id="f_res"><button data-v="" class="on">All results</button><button data-v="Pass">Pass</button><button data-v="Fail">Fail</button><button data-v="Pending">Pending</button><button data-v="none">Not reviewed</button></div>
+<div class="seg" id="f_type"><button data-v="" class="on">All checks</button><button data-v="std">Standard</button><button data-v="ten">10-Year</button></div>
+<select id="f_vendor"><option value="">Every vendor</option></select>
+<div class="srch"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><input id="f_q" type="search" placeholder="Search a name or vendor" autocomplete="off"></div>
+</div>
+<div class="showing" id="showing"></div>
+<div class="tblwrap"><div id="list" class="loading"><span class="spin"></span>Loading the roster...</div></div>
+<div class="legend">
+<span class="pill pass">Pass</span> cleared and shown on the Ops Hub &nbsp;
+<span class="pill fail">Fail</span> removed from the Ops Hub, kept here as history &nbsp;
+<span class="pill pend">Pending</span> waiting on a decision &nbsp;
+<span class="pill todo">Not reviewed</span> a check is on file, no result recorded yet &nbsp;
+<span class="pill ten">10-Year</span> the package Arroweye requires
+</div>
+</div>
+
+<aside class="side">
+<div class="card"><div class="chead"><span class="bar-accent"></span><h3>Two kinds of check</h3></div>
+<div class="cbody">
+<p><b style="color:var(--black)">Standard.</b> Verified First, Social Security address trace plus the nationwide criminal database. Every person in every City Wide building needs one on file.</p>
+<p style="margin-top:8px"><b style="color:var(--black)">10-Year.</b> The package Arroweye requires. Ten-year history plus a drug screen. Only people staffed to Arroweye need it.</p>
+</div></div>
+<div class="card"><div class="chead"><span class="bar-accent"></span><h3>Where this goes</h3></div>
+<div class="cbody">
+<ul>
+<li><span class="pill pass">Pass</span> name appears under the vendor on the <a href="https://citywidelv.github.io/cw-ops-desk/vendors.html#/lv/janitorial">Ops Hub directory</a></li>
+<li><span class="pill fail">Fail</span> name is taken off the directory the moment you click</li>
+<li><span class="pill grey">Sheet</span> every click writes the <a href="https://docs.google.com/spreadsheets/d/1kHRyeQzDsi-bnfE5YpD_KPV17GeD5aJ_5vrDQGU_s-0/edit" target="_blank" rel="noopener">Background checks tabs</a></li>
+</ul>
+<a class="btn sm" href="https://citywidelv.github.io/cw-ops-desk/bc-notices.html">Send vendor notices (Ops Hub)</a>
+</div></div>
+<div class="card"><div class="chead"><span class="bar-accent"></span><h3>Not matched to a vendor</h3><span class="sub" id="unm_n"></span></div>
+<div class="cbody">
+<p>These people came from the Verified First roster under a company name that is not on the vendor directory yet. Type the right vendor into the amber box on their row to attach them, or add the vendor first.</p>
+<button class="btn sm" id="showunm" type="button">Show only unmatched</button>
+</div></div>
+</aside>
+</div>
+</div>
+
+<footer class="foot"><div class="fin">
+<b>City Wide Facility Solutions</b> &middot; BOM Hub &middot; Internal use only &middot; Something missing? Tell TJ.
+<span class="fr">Las Vegas<span>&bull;</span>Reno</span>
+</div></footer>
+</div>
+
+<div class="modal" id="formmodal"><div class="mbox">
+<div class="mhead"><span class="bar-accent"></span><h3>Request or upload a background check</h3><button class="x" id="formx" title="Close">&#10005;</button></div>
+<div class="mbody"><iframe id="formframe" title="Background Check and Name Badge form" loading="lazy"></iframe></div>
+</div></div>
+
+<script src="bom-shared.js"></script>
+<script>
+(function(){
+var esc = BOM.esc, api = BOM.api, toast = BOM.toast;
+var VENDORS = [], BYID = {}, ROWS = [], TYPES = [];
+var F = { mk:"", res:"", type:"", vendor:"", q:"" };
+
+/* ---------- load ---------- */
+function load(){
+  return Promise.all([ api({ kind:"vd_list" }), api({ kind:"vd_bc_rows" }) ]).then(function(rs){
+    var vl = rs[0], bc = rs[1];
+    if(!vl.ok) throw new Error(vl.error || "vendor list failed");
+    if(!bc.ok) throw new Error(bc.error || "roster failed");
+    VENDORS = vl.vendors || [];
+    BYID = {};
+    VENDORS.forEach(function(v){ BYID[v.vendor_id] = v; });
+    ROWS = bc.rows || [];
+    TYPES = bc.types || ["Standard","10-Year","Standard + 10-Year"];
+    ROWS.forEach(function(r){ r._key = r.market + ":" + r.row; });
+    fillVendorInputs();
+    render();
+  });
+}
+function vendorLabel(v){ return v.dba_name + "  (" + v.vendor_id + ", " + (v.region === "Both" ? "LV + NNV" : v.region) + ")"; }
+function fillVendorInputs(){
+  var sorted = VENDORS.slice().sort(function(a,b){ return a.dba_name.toLowerCase() < b.dba_name.toLowerCase() ? -1 : 1; });
+  var dl = "";
+  sorted.forEach(function(v){ dl += '<option value="' + esc(vendorLabel(v)) + '">'; });
+  document.getElementById("vendorlist").innerHTML = dl;
+  // vendor filter: only vendors with someone on the roster
+  var has = {};
+  ROWS.forEach(function(r){ if(r.vendor_id) has[r.vendor_id] = true; });
+  var opts = '<option value="">Every vendor</option>';
+  sorted.forEach(function(v){ if(has[v.vendor_id]) opts += '<option value="' + esc(v.vendor_id) + '">' + esc(v.dba_name) + '</option>'; });
+  opts += '<option value="__unmatched">Not matched to a vendor</option>';
+  var sel = document.getElementById("f_vendor"); var keep = sel.value; sel.innerHTML = opts; sel.value = keep;
+}
+function parseVendor(text){
+  var m = /\((V-\d+),/.exec(text || "");
+  if(m && BYID[m[1]]) return BYID[m[1]];
+  var t = String(text || "").trim().toLowerCase();
+  if(!t) return null;
+  return VENDORS.filter(function(v){ return v.dba_name.toLowerCase() === t || (v.legal_name || "").toLowerCase() === t; })[0] || null;
+}
+
+/* ---------- stats + filters ---------- */
+function resKey(r){ return r.result || "none"; }
+function render(){
+  var n = { total:ROWS.length, pass:0, fail:0, pend:0, none:0, unm:0, ten:0 };
+  ROWS.forEach(function(r){
+    if(r.result === "Pass") n.pass++; else if(r.result === "Fail") n.fail++; else if(r.result === "Pending") n.pend++; else n.none++;
+    if(!r.matched) n.unm++;
+    if(/10-Year/.test(r.check_type)) n.ten++;
+  });
+  document.getElementById("stats").innerHTML =
+    tile("", n.total, "On file", "") + tile("pass", n.pass, "Passed", "Pass") + tile("fail", n.fail, "Failed", "Fail") +
+    tile("pend", n.pend, "Pending", "Pending") + tile("todo", n.none, "Not reviewed", "none") +
+    '<a class="stat" href="#" data-type="ten"><div class="n">' + n.ten + '</div><div class="l">10-Year on file</div></a>' +
+    '<a class="stat" href="#" data-unm="1"><div class="n" style="color:var(--amber)">' + n.unm + '</div><div class="l">Not matched</div></a>';
+  document.getElementById("unm_n").textContent = n.unm + " people";
+  renderList();
+}
+function tile(cls, num, label, res){
+  return '<a class="stat ' + cls + '" href="#" data-res="' + res + '"><div class="n">' + num + '</div><div class="l">' + label + '</div></a>';
+}
+document.getElementById("stats").addEventListener("click", function(e){
+  var a = e.target.closest("a.stat"); if(!a) return; e.preventDefault();
+  F.res = ""; F.type = ""; F.vendor = "";
+  if(a.dataset.res !== undefined) F.res = a.dataset.res;
+  if(a.dataset.type) F.type = a.dataset.type;
+  if(a.dataset.unm) F.vendor = "__unmatched";
+  syncSeg("f_res", F.res); syncSeg("f_type", F.type); document.getElementById("f_vendor").value = F.vendor;
+  renderList();
+  document.getElementById("listcard").scrollIntoView({ behavior:"smooth", block:"start" });
+});
+function syncSeg(id, val){
+  document.querySelectorAll("#" + id + " button").forEach(function(b){ b.classList.toggle("on", b.dataset.v === val); });
+}
+["f_mk","f_res","f_type"].forEach(function(id){
+  document.getElementById(id).addEventListener("click", function(e){
+    var b = e.target.closest("button"); if(!b) return;
+    var key = id === "f_mk" ? "mk" : id === "f_res" ? "res" : "type";
+    F[key] = b.dataset.v; syncSeg(id, F[key]); renderList();
+  });
+});
+document.getElementById("f_vendor").addEventListener("change", function(){ F.vendor = this.value; renderList(); });
+document.getElementById("f_q").addEventListener("input", function(){ F.q = this.value.trim().toLowerCase(); renderList(); });
+document.getElementById("showunm").addEventListener("click", function(){
+  F.vendor = "__unmatched"; document.getElementById("f_vendor").value = F.vendor; renderList();
+  document.getElementById("listcard").scrollIntoView({ behavior:"smooth" });
+});
+
+function visible(){
+  return ROWS.filter(function(r){
+    if(F.mk && r.market !== F.mk) return false;
+    if(F.res && resKey(r) !== F.res) return false;
+    if(F.type === "ten" && !/10-Year/.test(r.check_type)) return false;
+    if(F.type === "std" && r.check_type !== "Standard") return false;
+    if(F.vendor === "__unmatched"){ if(r.matched) return false; }
+    else if(F.vendor && r.vendor_id !== F.vendor) return false;
+    if(F.q){
+      var hay = (r.first_name + " " + r.last_name + " " + r.vendor + " " + r.roster_company_as_typed + " " + r.vf_file_no).toLowerCase();
+      if(F.q.split(/\s+/).some(function(w){ return hay.indexOf(w) < 0; })) return false;
+    }
+    return true;
+  });
+}
+
+/* ---------- list ---------- */
+function renderList(){
+  var rows = visible();
+  var host = document.getElementById("list");
+  document.getElementById("showing").innerHTML = "Showing <b>" + rows.length + "</b> of " + ROWS.length + " people" +
+    (F.mk || F.res || F.type || F.vendor || F.q ? ' &middot; <a href="#" id="clearf">clear filters</a>' : "");
+  var cf = document.getElementById("clearf");
+  if(cf) cf.addEventListener("click", function(e){ e.preventDefault(); F = { mk:"", res:"", type:"", vendor:"", q:"" };
+    syncSeg("f_mk",""); syncSeg("f_res",""); syncSeg("f_type",""); document.getElementById("f_vendor").value = ""; document.getElementById("f_q").value = ""; renderList(); });
+  if(!rows.length){
+    host.className = ""; host.innerHTML = '<div class="empty"><b>Nobody matches.</b>Change a filter, or add a person at the top of the page.</div>'; return;
+  }
+  rows.sort(function(a,b){
+    var va = (a.matched ? a.vendor : "zzz " + (a.vendor || a.roster_company_as_typed)).toLowerCase();
+    var vb = (b.matched ? b.vendor : "zzz " + (b.vendor || b.roster_company_as_typed)).toLowerCase();
+    if(va !== vb) return va < vb ? -1 : 1;
+    var na = (a.last_name + " " + a.first_name).toLowerCase(), nb = (b.last_name + " " + b.first_name).toLowerCase();
+    return na < nb ? -1 : na > nb ? 1 : 0;
+  });
+  var html = '<table class="tbl"><thead><tr><th>Person</th><th>Check</th><th>Result</th><th>Checked</th><th>Reviewed</th><th>Notes</th></tr></thead><tbody>';
+  var lastV = null;
+  rows.forEach(function(r){
+    var vkey = r.matched ? r.vendor_id : "unm:" + (r.vendor || r.roster_company_as_typed);
+    if(vkey !== lastV){
+      lastV = vkey;
+      var cnt = rows.filter(function(x){ return (x.matched ? x.vendor_id : "unm:" + (x.vendor || x.roster_company_as_typed)) === vkey; }).length;
+      var v = r.matched ? BYID[r.vendor_id] : null;
+      html += '<tr class="grp"><td colspan="6"><div class="gv">' +
+        (r.matched ? esc(r.vendor) + ' <span class="pill ' + r.market + '">' + (r.market === "nnv" ? "Northern Nevada" : "Las Vegas") + '</span>' +
+          (v && v.status ? '<span class="pill grey">' + esc(v.status) + '</span>' : '')
+          : '<span class="unm">Not on the vendor directory:</span> ' + esc(r.vendor || r.roster_company_as_typed) + ' <span class="pill ' + r.market + '">' + (r.market === "nnv" ? "Northern Nevada" : "Las Vegas") + '</span>') +
+        '<span class="cnt">' + cnt + (cnt === 1 ? " person" : " people") + '</span>' +
+        (r.matched ? '<a href="' + BOM.OPS + 'vendors.html#/' + r.market + '/janitorial" target="_blank" rel="noopener">Open on the Ops Hub &rarr;</a>' : '') +
+        '</div></td></tr>';
+    }
+    html += rowHtml(r);
+  });
+  html += '</tbody></table>';
+  host.className = ""; host.innerHTML = html;
+}
+function rowHtml(r){
+  var rk = resKey(r);
+  var typeSel = '<select class="inl" data-act="type" data-key="' + esc(r._key) + '">' + TYPES.map(function(t){
+    return '<option value="' + esc(t) + '"' + (t === r.check_type ? " selected" : "") + '>' + esc(t === "10-Year" ? "10-Year (Arroweye)" : t) + '</option>';
+  }).join("") + '</select>';
+  var res = '<div class="res" data-key="' + esc(r._key) + '">' +
+    '<button class="pass' + (rk === "Pass" ? " on" : "") + '" data-act="res" data-v="Pass" title="Pass">Pass</button>' +
+    '<button class="fail' + (rk === "Fail" ? " on" : "") + '" data-act="res" data-v="Fail" title="Fail">Fail</button>' +
+    '<button class="pend' + (rk === "Pending" ? " on" : "") + '" data-act="res" data-v="Pending" title="Pending">Pend</button></div>' +
+    (rk === "none" ? ' <span class="pill todo" style="margin-left:6px">Not reviewed</span>' : '');
+  var attach = r.matched ? "" : '<div class="attach" style="margin-top:5px"><input list="vendorlist" placeholder="Attach to a vendor..." data-act="attach" data-key="' + esc(r._key) + '" autocomplete="off"></div>';
+  return '<tr class="person" data-key="' + esc(r._key) + '">' +
+    '<td><div class="nm">' + esc(r.last_name) + ', ' + esc(r.first_name) +
+      (r.vf_file_no ? '<small>Verified First ' + esc(r.vf_file_no) + '</small>' : '') + '</div>' + attach + '</td>' +
+    '<td>' + typeSel + (/10-Year/.test(r.check_type) ? ' <span class="pill ten">10-Yr</span>' : '') + '</td>' +
+    '<td>' + res + '</td>' +
+    '<td class="muted">' + esc(BOM.fmtDate(r.most_recent_check) || "") + '</td>' +
+    '<td class="muted">' + (r.result_date ? esc(BOM.fmtDate(r.result_date)) + (r.reviewed_by ? '<br><small>' + esc(r.reviewed_by) + '</small>' : '') : '') + '</td>' +
+    '<td><div class="notetxt" title="' + esc(r.notes) + '">' + esc(r.notes) + '</div><button class="notesbtn" data-act="note" data-key="' + esc(r._key) + '">' + (r.notes ? "edit note" : "add a note") + '</button></td></tr>';
+}
+function findRow(key){ return ROWS.filter(function(r){ return r._key === key; })[0]; }
+
+/* ---------- writes ---------- */
+function reviewer(){
+  var w = document.getElementById("a_who").value.trim();
+  if(w) BOM.setWho(w);
+  return w;
+}
+function patch(r, fields, label){
+  var tr = document.querySelector('tr.person[data-key="' + r._key + '"]');
+  if(tr) tr.classList.add("busy");
+  var payload = { market:r.market, row:r.row };
+  Object.keys(fields).forEach(function(k){ payload[k] = fields[k]; });
+  return api({ kind:"vd_bc_upsert", reviewed_by: reviewer(), rows:[payload] }).then(function(res){
+    if(!res.ok || (res.errors && res.errors.length)) throw new Error((res.errors && res.errors[0]) || res.error || "Save failed");
+    return api({ kind:"vd_bc_rows" });
+  }).then(function(bc){
+    if(bc.ok){ ROWS = bc.rows; ROWS.forEach(function(x){ x._key = x.market + ":" + x.row; }); fillVendorInputs(); render(); }
+    toast(label || "Saved", "ok");
+  }).catch(function(e){
+    if(tr) tr.classList.remove("busy");
+    toast("Not saved: " + e.message, "err");
+  });
+}
+document.getElementById("list").addEventListener("click", function(e){
+  var b = e.target.closest("button[data-act]"); if(!b) return;
+  if(b.dataset.act === "res"){
+    var key = b.closest(".res").dataset.key, r = findRow(key); if(!r) return;
+    var v = b.dataset.v;
+    if(v === "Fail" && r.result !== "Fail" && !confirm("Mark " + r.first_name + " " + r.last_name + " as FAILED? They come off the Ops Hub directory for " + r.vendor + " right away.")) return;
+    if(r.result === v) v = "";   // click the lit button again to clear the result
+    patch(r, { result: v }, v ? (r.first_name + " " + r.last_name + ": " + v) : "Result cleared");
+  }
+  if(b.dataset.act === "note"){
+    var r2 = findRow(b.dataset.key); if(!r2) return;
+    var n = prompt("Note for " + r2.first_name + " " + r2.last_name + ":", r2.notes || "");
+    if(n === null) return;
+    patch(r2, { notes: n }, "Note saved");
+  }
+});
+document.getElementById("list").addEventListener("change", function(e){
+  var el = e.target;
+  if(el.dataset.act === "type"){ var r = findRow(el.dataset.key); if(r) patch(r, { check_type: el.value }, "Check type saved"); }
+  if(el.dataset.act === "attach"){
+    var r2 = findRow(el.dataset.key), v = parseVendor(el.value);
+    if(!r2) return;
+    if(!v){ el.classList.add("bad"); toast("Pick a vendor from the list", "err"); return; }
+    var mk = v.region === "Northern Nevada" ? "nnv" : v.region === "Both" ? r2.market : "lv";
+    if(mk !== r2.market && !confirm(v.dba_name + " is a " + (mk === "nnv" ? "Northern Nevada" : "Las Vegas") + " vendor. Attach anyway? The row stays on its current market tab.")) return;
+    patch(r2, { vendor_id: v.vendor_id, vendor: v.dba_name, notes: (r2.notes ? r2.notes + " " : "") + "Attached to " + v.vendor_id + " on the BOM Hub." }, "Attached to " + v.dba_name);
+  }
+});
+
+/* ---------- add a person ---------- */
+var aV = document.getElementById("a_vendor"), aHit = document.getElementById("a_vhit"), aMk = document.getElementById("a_mk"), aMkTxt = document.getElementById("a_market");
+function checkVendor(){
+  var v = parseVendor(aV.value);
+  if(!aV.value.trim()){ aHit.textContent = ""; aHit.className = "vhit"; aMk.classList.add("hidden"); aMkTxt.textContent = "from the vendor"; aMkTxt.classList.remove("hidden"); return null; }
+  if(v){
+    aHit.textContent = v.dba_name + " is on the directory as " + v.vendor_id + " (" + v.status + ")"; aHit.className = "vhit ok";
+    if(v.region === "Both"){ aMk.classList.remove("hidden"); aMkTxt.classList.add("hidden"); }
+    else { aMk.classList.add("hidden"); aMkTxt.classList.remove("hidden"); aMkTxt.textContent = v.region; }
+  } else {
+    aHit.textContent = "Not on the vendor directory. You can still add the person; they will show as unmatched until the vendor exists."; aHit.className = "vhit warn";
+    aMk.classList.remove("hidden"); aMkTxt.classList.add("hidden");
+  }
+  return v;
+}
+aV.addEventListener("input", checkVendor); aV.addEventListener("change", checkVendor);
+document.getElementById("a_go").addEventListener("click", function(){
+  var v = checkVendor();
+  var first = document.getElementById("a_first").value.trim(), last = document.getElementById("a_last").value.trim();
+  var bad = false;
+  ["a_first","a_last"].forEach(function(id){ var el = document.getElementById(id); el.classList.toggle("bad", !el.value.trim()); if(!el.value.trim()) bad = true; });
+  if(!aV.value.trim()){ aV.classList.add("bad"); bad = true; } else aV.classList.remove("bad");
+  if(bad){ toast("Vendor, first name and last name are needed", "err"); return; }
+  var mk = v ? (v.region === "Northern Nevada" ? "nnv" : v.region === "Both" ? aMk.value : "lv") : aMk.value;
+  var row = { market:mk, first_name:first, last_name:last, check_type:document.getElementById("a_type").value,
+              result:document.getElementById("a_result").value, notes:"Added on the BOM Hub " + new Date().toISOString().slice(0,10) + "." };
+  if(v){ row.vendor_id = v.vendor_id; row.vendor = v.dba_name; } else { row.vendor = aV.value.trim(); row.roster_company_as_typed = aV.value.trim(); }
+  var btn = this; btn.disabled = true; btn.textContent = "Adding...";
+  api({ kind:"vd_bc_upsert", reviewed_by: reviewer(), rows:[row] }).then(function(res){
+    if(!res.ok || (res.errors && res.errors.length)) throw new Error((res.errors && res.errors[0]) || res.error || "Add failed");
+    toast(first + " " + last + (res.updated ? " was already on file; updated" : " added") + (v ? " under " + v.dba_name : ""), "ok");
+    document.getElementById("a_first").value = ""; document.getElementById("a_last").value = ""; document.getElementById("a_result").value = "";
+    document.getElementById("a_first").focus();
+    return api({ kind:"vd_bc_rows" });
+  }).then(function(bc){
+    if(bc && bc.ok){ ROWS = bc.rows; ROWS.forEach(function(x){ x._key = x.market + ":" + x.row; }); fillVendorInputs(); render(); }
+  }).catch(function(e){ toast("Not added: " + e.message, "err"); })
+  .then(function(){ btn.disabled = false; btn.textContent = "Add person"; });
+});
+["a_first","a_last"].forEach(function(id){ document.getElementById(id).addEventListener("keydown", function(e){ if(e.key === "Enter") document.getElementById("a_go").click(); }); });
+
+/* ---------- form modal ---------- */
+document.getElementById("openform").addEventListener("click", function(){
+  var f = document.getElementById("formframe");
+  if(!f.src) f.src = BOM.FORMS.bgcheck + "&embed=true";
+  document.getElementById("formmodal").classList.add("show");
+});
+document.getElementById("formx").addEventListener("click", function(){ document.getElementById("formmodal").classList.remove("show"); });
+document.getElementById("formmodal").addEventListener("click", function(e){ if(e.target === this) this.classList.remove("show"); });
+
+/* ---------- go ---------- */
+BOM.init({ page:"bc", onReady:function(){
+  document.getElementById("a_who").value = BOM.who();
+  load().catch(function(e){
+    document.getElementById("list").className = "";
+    document.getElementById("list").innerHTML = '<div class="empty"><b>Could not load the roster.</b>' + esc(e.message) + '</div>';
+  });
+  if(location.hash === "#add") setTimeout(function(){ document.getElementById("a_vendor").focus(); }, 300);
+}});
+})();
+</script>
+</body>
+</html>
