@@ -1,4 +1,4 @@
-/* CW BOM Hub shared script. Build 2026-09-04a.
+/* CW BOM Hub shared script. Build 2026-09-05a (adds COI Requests menu).
    Gate, header, cascading nav, webhook helper, Asana project registry.
    Every page: <link bom.css> ... <div id="gate"> + <div id="app" class="hidden">, then
    this file, then BOM.init({page:'...'}). Data lives in Google Sheets through the
@@ -69,7 +69,7 @@ function esc(s){ return String(s == null ? "" : s).replace(/&/g,"&amp;").replace
 
 /* ---------- nav tree. Add a tool here and it shows on every BOM page. ---------- */
 var MENU = [
-  { label:"Background Checks", icon:"shield", items:[
+  { label:"Background Checks", icon:"shield", page:"bc", items:[
     {label:"Review & Record Results", href:"background-checks.html", tag:"Hub"},
     {label:"Add a Person", href:"background-checks.html#add", tag:"Hub"},
     {ghead:"Requests"},
@@ -79,6 +79,13 @@ var MENU = [
     {ghead:"Records"},
     {label:"Background Checks on File (Sheet)", href:SHEET, tag:"Sheet"},
     {label:"Verified First", href:"https://app.verifiedfirst.com/", tag:"Site"}
+  ]},
+  { label:"COI Requests", icon:"sheet", page:"coi", items:[
+    {label:"Request Log & Status", href:"coi-log.html", tag:"Hub"},
+    {label:"New COI Request for a Customer", href:OPS + "coi-request.html", tag:"Ops Hub"},
+    {ghead:"Records"},
+    {label:"COI Requests (Sheet tab)", href:"https://docs.google.com/spreadsheets/d/1ymbqR7LMvA7sbgZe2Ro5o2dNiXhP08Tn9Hw1b-H5AeQ/edit", tag:"Sheet"},
+    {label:"Vendor COIs Coming In (Ops Hub)", href:OPS + "insurance.html", tag:"Ops Hub"}
   ]},
   { label:"Onboarding", icon:"clip", items:[
     {ghead:"Las Vegas"},
@@ -98,7 +105,7 @@ var MENU = [
     {label:"Active Vendors (Las Vegas)", href:OPS + "vendors.html#/lv/janitorial", tag:"Ops Hub"},
     {label:"Active Vendors (Northern Nevada)", href:OPS + "vendors.html#/nnv/janitorial", tag:"Ops Hub"}
   ]},
-  { label:"Asana Boards", icon:"asana", items:[
+  { label:"Asana Boards", icon:"asana", page:"asana", items:[
     {label:"All BOM boards, live", href:"asana.html", tag:"Hub"},
     {label:"Business Ops team in Asana", href:ASANA_TEAM_URL, tag:"Asana"},
     {ghead:"Requests"},
@@ -130,7 +137,7 @@ function renderHeader(page){
   if(!h) return;
   var nav = "";
   MENU.forEach(function(m, mi){
-    var here = (page === "bc" && mi === 0) || (page === "asana" && mi === 2);
+    var here = !!page && m.page === page;
     var items = "";
     m.items.forEach(function(it){ items += it.ghead ? '<div class="ghead">' + esc(it.ghead) + '</div>' : menuLink(it); });
     nav += '<div class="nitem"><button class="nbtn' + (here ? ' here' : '') + '" data-dd="' + mi + '">' + icon(m.icon, 14) + esc(m.label) +

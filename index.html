@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>CW BOM Hub | Business Operations Management</title>
-<!-- build 2026-09-04a. The Business Operations Manager's front door, a sibling of the
+<!-- build 2026-09-05a (COI request card + quick link). The Business Operations Manager's front door, a sibling of the
 Ops Hub (cw-ops-desk) on the Nevada Team Portal. Passcode gate checked server-side
 (kind vd_bom_auth in VendorDirectory.gs; the Ops Hub team passcode also unlocks it).
 Background check roster and Asana boards are read live; nothing on this page is
@@ -101,6 +101,18 @@ hardcoded data except the menu tree and the Asana project registry in bom-shared
 </div>
 </div>
 
+<div class="wrap feature" style="margin-top:12px">
+<div class="fcard" style="border-left-color:var(--black)">
+<span class="ficon" style="background:var(--black)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg></span>
+<div class="ftext"><h3>Customer COI Requests</h3>
+<p>Every certificate of insurance a customer asks for, with the broker checklist and its status: requested, sent to broker, received, delivered. <span id="coisum" style="color:var(--black);font-weight:700"></span></p></div>
+<div class="fbtns">
+<a class="btn solid" href="coi-log.html">Open the Request Log</a>
+<a class="btn" href="https://citywidelv.github.io/cw-ops-desk/coi-request.html">New Request</a>
+</div>
+</div>
+</div>
+
 <div class="wrap section">
 <div class="grid2">
 <div>
@@ -119,6 +131,7 @@ hardcoded data except the menu tree and the Asana project registry in bom-shared
 <p>The Business Operations Manager runs and checks every background check, onboards new ICs, and handles Exhibit A and office requests. Everything for that role is in the menus above.</p>
 <ul>
 <li><span>Background Checks</span> &nbsp;record, request, notify</li>
+<li><span>COI Requests</span> &nbsp;customer certificates, broker checklist, status</li>
 <li><span>Onboarding</span> &nbsp;LV and NNV boards, packets</li>
 <li><span>Asana Boards</span> &nbsp;every project, live</li>
 <li><span>Team &amp; Admin</span> &nbsp;portal, hubs, ADP, CRM</li>
@@ -158,6 +171,7 @@ var QUICK = [
   { label:"LV Onboarding", href:BOM.asanaUrl("1211434492126262"), icon:"clip" },
   { label:"NNV Onboarding", href:BOM.asanaUrl("1211502025994509"), icon:"clip" },
   { label:"Exhibit A Requests", href:BOM.asanaUrl("1211502025570262"), icon:"sheet" },
+  { label:"COI Requests", href:"coi-log.html", icon:"sheet" },
   { label:"Add a Vendor", href:BOM.OPS + "vendor-add.html", icon:"users" },
   { label:"Ops Hub", href:BOM.OPS, icon:"board", dark:true }
 ];
@@ -237,7 +251,16 @@ function loadAsana(){
   }).catch(function(){ document.getElementById("pcards").innerHTML = '<span class="loading">Could not reach the server.</span>'; });
 }
 
-BOM.init({ page:"home", onReady:function(){ loadBc(); loadAsana(); } });
+function loadCoi(){
+  api({ kind:"vd_coi_rows" }).then(function(r){
+    var el = document.getElementById("coisum"); if(!el || !r || !r.ok) return;
+    var rows = (r.rows || []).filter(function(x){ return x.test !== "TRUE"; });
+    var open = rows.filter(function(x){ return x.status !== "Delivered to customer"; }).length;
+    var atb = rows.filter(function(x){ return x.status === "Sent to broker"; }).length;
+    el.textContent = open ? open + " open" + (atb ? ", " + atb + " at the broker" : "") + "." : (rows.length ? "Nothing open." : "");
+  }).catch(function(){});
+}
+BOM.init({ page:"home", onReady:function(){ loadBc(); loadAsana(); loadCoi(); } });
 })();
 </script>
 </body>

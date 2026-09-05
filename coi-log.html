@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>COI Requests | CW BOM Hub</title>
+<!-- build 2026-09-05a. The Business Operations Manager's log of customer certificate of
+insurance requests. Reads the "COI Requests" tab of the CW Solicitations sheet through
+CoiRequest.gs (kinds vd_coi_rows, vd_coi_status). Status moves Requested -> Sent to broker
+-> Received -> Delivered to customer from the dropdown on each row; notes, the delivered
+certificate link, and the history live on the row. New requests come from the Ops Hub
+page coi-request.html. Nothing on this page deletes anything. -->
+<link rel="stylesheet" href="bom.css">
+<link rel="icon" href="https://citywidelv.github.io/cw-ops-desk/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="https://citywidelv.github.io/cw-ops-desk/favicon-32x32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://citywidelv.github.io/cw-ops-desk/apple-touch-icon.png">
+<style>
+.topbar{position:relative;z-index:5;margin-top:-46px}
+.topbar .qcard{padding:14px 18px 12px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.topbar .qcard .qhead{margin:0}
+.topbar .who{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--grey)}
+.topbar .who input{font-size:11.5px;border:1px solid var(--border);border-radius:6px;padding:5px 8px;width:150px}
+.topbar .sp{flex:1}
+.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:12px 18px;border-bottom:1px solid var(--border)}
+.seg{display:inline-flex;border:1.5px solid var(--border);border-radius:9px;overflow:hidden;background:#fff}
+.seg button{border:none;background:none;font-size:11.5px;font-weight:700;padding:7px 11px;cursor:pointer;color:var(--grey);white-space:nowrap}
+.seg button.on{background:var(--black);color:#fff}
+.seg button:hover:not(.on){background:var(--light);color:var(--black)}
+.filters .chk{font-size:11.5px;color:var(--grey);display:inline-flex;align-items:center;gap:5px}
+.filters .srch{position:relative;margin-left:auto;min-width:220px}
+.filters .srch svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--grey)}
+.filters .srch input{width:100%;font-size:12.5px;border:1.5px solid var(--border);border-radius:16px;padding:8px 12px 8px 32px;background:var(--light);outline:none}
+.filters .srch input:focus{border-color:var(--red);background:#fff}
+.showing{font-size:11.5px;color:var(--grey);padding:8px 18px;border-bottom:1px solid var(--light)}
+.showing b{color:var(--black)}
+.tblwrap{overflow-x:auto}
+.tbl{width:100%;border-collapse:collapse}
+.tbl th{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--grey);text-align:left;padding:10px 12px;border-bottom:1px solid var(--border);white-space:nowrap;background:#fff}
+.tbl td{padding:9px 12px;border-bottom:1px solid var(--light);vertical-align:middle;font-size:13px}
+.tbl tr.req{cursor:pointer}
+.tbl tr.req:hover td{background:#fffbf2}
+.tbl tr.busy td{opacity:.55}
+.tbl .id{font-weight:700;white-space:nowrap;font-size:12px}
+.tbl .id small{display:block;font-weight:400;font-size:10.5px;color:var(--grey)}
+.tbl .cust{font-weight:700}
+.tbl .cust small{display:block;font-weight:400;font-size:11px;color:var(--grey);max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tbl .muted{color:var(--grey);font-size:12px;white-space:nowrap}
+.tbl select.inl{font-size:12px;border:1.5px solid var(--border);border-radius:7px;padding:5px 7px;background:#fff;max-width:190px}
+.tbl .chev{color:var(--grey);font-size:11px;width:20px;text-align:center}
+.tbl tr.open .chev{color:var(--red)}
+.tbl tr.detail td{background:var(--light);padding:16px 18px 18px;cursor:default}
+.det{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:16px}
+@media(max-width:1000px){.det{grid-template-columns:1fr}}
+.det .box{background:#fff;border:1px solid var(--border);border-radius:10px;padding:12px 14px}
+.det .box h4{font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--grey);margin-bottom:8px;display:flex;align-items:center;gap:10px}
+.det .box h4 .r{margin-left:auto;display:flex;gap:6px}
+.det pre{font-family:inherit;font-size:11.5px;line-height:1.5;white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto;background:var(--light);border:1px solid var(--border);border-radius:8px;padding:10px 12px}
+.det .hist{font-size:11.5px;color:var(--grey);white-space:pre-wrap;line-height:1.6}
+.det .frm{display:grid;grid-template-columns:1fr;gap:8px}
+.det .frm input,.det .frm textarea{width:100%;font-size:12.5px;border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;background:#fff;outline:none}
+.det .frm textarea{min-height:60px;resize:vertical}
+.det .frm input:focus,.det .frm textarea:focus{border-color:var(--red)}
+.det .links a{display:block;font-size:12px;color:var(--red);text-decoration:none;word-break:break-all;padding:2px 0}
+.det .links a:hover{text-decoration:underline}
+.pill.req{background:var(--blue-bg);color:var(--blue)}
+.pill.brk{background:var(--amber-bg);color:var(--amber)}
+.pill.rcv{background:#EAF6F6;color:#0A7F82}
+.pill.dlv{background:var(--green-bg);color:var(--green)}
+.pill.late{background:var(--red-bg);color:var(--red)}
+.pill.test{background:var(--black);color:var(--gold)}
+.pill.flag{background:var(--gold-bg);color:var(--amber)}
+.stat.brk .n{color:var(--amber)}
+.stat.rcv .n{color:#0A7F82}
+.stat.dlv .n{color:var(--green)}
+.stat.late .n{color:var(--red)}
+.loading{color:var(--grey);font-size:12.5px;padding:18px}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--red);border-radius:50%;animation:sp .8s linear infinite;vertical-align:middle;margin-right:8px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.legend{font-size:11.5px;color:var(--grey);padding:12px 18px;border-top:1px solid var(--border);line-height:1.9}
+.empty{padding:28px 18px;color:var(--grey);font-size:13px;text-align:center}
+</style>
+</head>
+<body>
+<div id="gate" class="gate"></div>
+<div id="app" class="hidden">
+<header class="head" id="bomhead"></header>
+
+<section class="hero slim">
+<div class="bg" style="background-image:url('https://citywidelv.github.io/cw-ops-desk/images/fsm-uniform-hallway.jpg')"></div>
+<div class="wrap">
+<div class="htext">
+<div class="kick">Business Operations Management</div>
+<h1>COI Requests</h1>
+<p>Every certificate of insurance a customer has asked for, with its broker checklist and where it stands. Move the status as it goes to the broker, comes back, and reaches the customer.</p>
+</div>
+</div>
+</section>
+
+<div class="wrap topbar">
+<div class="qcard">
+<div class="qhead"><span class="bar-accent"></span><h2>Request log</h2></div>
+<span class="who">Updating as <input id="who" placeholder="Your name"></span>
+<span class="sp"></span>
+<a class="btn solid" href="https://citywidelv.github.io/cw-ops-desk/coi-request.html">+ New COI request</a>
+<a class="btn" id="sheetlink" href="#" target="_blank" rel="noopener">Log sheet</a>
+<button class="btn" id="reload" type="button">Refresh</button>
+</div>
+</div>
+
+<div class="wrap section">
+<div class="stats" id="stats"></div>
+</div>
+
+<div class="wrap">
+<div class="card">
+<div class="filters">
+<div class="seg" id="f_status"><button data-v="open" class="on">Open</button><button data-v="Requested">Requested</button><button data-v="Sent to broker">Sent to broker</button><button data-v="Received">Received</button><button data-v="Delivered to customer">Delivered</button><button data-v="">Everything</button></div>
+<div class="seg" id="f_mk"><button data-v="" class="on">Both markets</button><button data-v="Las Vegas">Las Vegas</button><button data-v="Northern Nevada">Northern Nevada</button></div>
+<label class="chk"><input type="checkbox" id="f_test"> Show TEST rows</label>
+<div class="srch"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><input id="f_q" type="search" placeholder="Customer, holder, request number, requester" autocomplete="off"></div>
+</div>
+<div class="showing" id="showing"></div>
+<div class="tblwrap"><div id="list" class="loading"><span class="spin"></span>Loading requests...</div></div>
+<div class="legend">
+<span class="pill req">Requested</span> logged, not yet sent to the broker &nbsp;
+<span class="pill brk">Sent to broker</span> checklist forwarded, waiting on the certificate &nbsp;
+<span class="pill rcv">Received</span> certificate back from the broker, check it against the checklist &nbsp;
+<span class="pill dlv">Delivered</span> accepted by the customer &nbsp;
+<span class="pill late">Past needed-by</span> the customer's date passed and it is not delivered
+</div>
+</div>
+</div>
+
+<footer class="foot"><div class="fin">
+<b>City Wide Facility Solutions</b> &middot; BOM Hub &middot; Internal use only &middot; Something missing? Tell TJ.
+<span class="fr">Las Vegas<span>&bull;</span>Reno</span>
+</div></footer>
+</div>
+
+<script src="bom-shared.js"></script>
+<script>
+var ROWS = [], STATUSES = ["Requested", "Sent to broker", "Received", "Delivered to customer"];
+var F = { status: "open", mk: "", test: false, q: "" };
+var OPEN = {};
+var esc = BOM.esc;
+function $(id){ return document.getElementById(id); }
+function today(){ var d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+function isLate(r){ return r.needed_by && r.needed_by < today() && r.status !== "Delivered to customer"; }
+function pillCls(s){ return s === "Sent to broker" ? "brk" : s === "Received" ? "rcv" : s === "Delivered to customer" ? "dlv" : "req"; }
+function who(){ return ($("who").value || "").trim() || BOM.who() || ""; }
+
+function load(){
+  $("list").innerHTML = '<div class="loading"><span class="spin"></span>Loading requests...</div>';
+  BOM.api({ kind:"vd_coi_rows" }).then(function(r){
+    if(!r || !r.ok){ $("list").innerHTML = '<div class="empty">' + esc((r && r.error) || "Could not load the log.") + '</div>'; return; }
+    ROWS = r.rows || []; if(r.statuses && r.statuses.length) STATUSES = r.statuses;
+    if(r.sheet_url) $("sheetlink").href = r.sheet_url + (r.gid ? "#gid=" + r.gid : "");
+    stats(); render();
+  }).catch(function(){ $("list").innerHTML = '<div class="empty">Could not reach the service. Refresh to try again.</div>'; });
+}
+
+function stats(){
+  var live = ROWS.filter(function(r){ return r.test !== "TRUE"; });
+  var c = { req:0, brk:0, rcv:0, dlv:0, late:0 };
+  live.forEach(function(r){
+    if(r.status === "Requested") c.req++; else if(r.status === "Sent to broker") c.brk++; else if(r.status === "Received") c.rcv++; else if(r.status === "Delivered to customer") c.dlv++;
+    if(isLate(r)) c.late++;
+  });
+  $("stats").innerHTML =
+    '<a class="stat todo" href="#" data-f="Requested"><div class="n">' + c.req + '</div><div class="l">Requested</div></a>' +
+    '<a class="stat brk" href="#" data-f="Sent to broker"><div class="n">' + c.brk + '</div><div class="l">At the broker</div></a>' +
+    '<a class="stat rcv" href="#" data-f="Received"><div class="n">' + c.rcv + '</div><div class="l">Received, to check</div></a>' +
+    '<a class="stat dlv" href="#" data-f="Delivered to customer"><div class="n">' + c.dlv + '</div><div class="l">Delivered</div></a>' +
+    '<a class="stat late" href="#" data-f="late"><div class="n">' + c.late + '</div><div class="l">Past needed-by</div></a>';
+  $("stats").querySelectorAll(".stat").forEach(function(a){
+    a.addEventListener("click", function(e){ e.preventDefault(); setSeg("f_status", a.getAttribute("data-f") === "late" ? "open" : a.getAttribute("data-f")); F.q = a.getAttribute("data-f") === "late" ? "" : F.q; if(a.getAttribute("data-f") === "late") F.late = true; render(); });
+  });
+}
+function setSeg(id, v){
+  F[id === "f_status" ? "status" : "mk"] = v; F.late = false;
+  $(id).querySelectorAll("button").forEach(function(b){ b.classList.toggle("on", b.getAttribute("data-v") === v); });
+}
+
+function visible(){
+  var q = F.q.toLowerCase();
+  return ROWS.filter(function(r){
+    if(!F.test && r.test === "TRUE") return false;
+    if(F.mk && r.market !== F.mk) return false;
+    if(F.status === "open"){ if(r.status === "Delivered to customer") return false; }
+    else if(F.status && r.status !== F.status) return false;
+    if(F.late && !isLate(r)) return false;
+    if(q){
+      var hay = [r.request_id, r.account_name, r.holder_name, r.requester_name, r.market, r.portal, r.flags].join(" ").toLowerCase();
+      if(hay.indexOf(q) < 0) return false;
+    }
+    return true;
+  });
+}
+
+function render(){
+  var rows = visible();
+  $("showing").innerHTML = 'Showing <b>' + rows.length + '</b> of ' + ROWS.filter(function(r){ return F.test || r.test !== "TRUE"; }).length + ' requests' + (F.late ? ' <b>past their needed-by date</b>' : '') + '. Click a row for the checklist, the customer\'s email, and notes.';
+  if(!rows.length){ $("list").innerHTML = '<div class="empty">Nothing here. ' + (ROWS.length ? 'Change the filters above.' : 'The first request from the Ops Hub page will show up here.') + '</div>'; return; }
+  var html = '<table class="tbl"><thead><tr><th></th><th>Request</th><th>Customer</th><th>Market</th><th>Needed by</th><th>Status</th><th>Requested by</th><th>Files</th></tr></thead><tbody>';
+  rows.forEach(function(r){
+    var open = !!OPEN[r.request_id];
+    var links = (r.sample_links || "").split(/\n+/).filter(Boolean);
+    html += '<tr class="req' + (open ? ' open' : '') + '" data-id="' + esc(r.request_id) + '">' +
+      '<td class="chev">' + (open ? '&#9660;' : '&#9654;') + '</td>' +
+      '<td class="id">' + esc(r.request_id) + (r.test === "TRUE" ? ' <span class="pill test">Test</span>' : '') + '<small>' + esc((r.submitted || "").slice(0, 16)) + '</small></td>' +
+      '<td class="cust">' + esc(r.account_name) + '<small>Holder: ' + esc(r.holder_name) + '</small></td>' +
+      '<td><span class="pill ' + (r.market === "Northern Nevada" ? 'nnv' : 'lv') + '">' + esc(r.market === "Northern Nevada" ? "NNV" : "LV") + '</span></td>' +
+      '<td class="muted">' + (r.needed_by ? BOM.fmtDate(r.needed_by) : '<span style="color:#bbb">none</span>') + (isLate(r) ? ' <span class="pill late">Late</span>' : '') + '</td>' +
+      '<td><select class="inl st" data-id="' + esc(r.request_id) + '" data-row="' + esc(r._row) + '">' +
+        STATUSES.map(function(s){ return '<option' + (s === r.status ? ' selected' : '') + '>' + esc(s) + '</option>'; }).join('') + '</select>' +
+        (r.flags ? ' <span class="pill flag" title="' + esc(r.flags) + '">Flags</span>' : '') +
+        (r.standing_renewal === "Yes" ? ' <span class="pill grey" title="Standing renewal each policy year">Renews</span>' : '') + '</td>' +
+      '<td class="muted">' + esc(r.requester_name) + '</td>' +
+      '<td class="muted">' + (links.length ? links.length + ' file' + (links.length > 1 ? 's' : '') : '') + (r.cert_link ? ' <a href="' + esc(r.cert_link) + '" target="_blank" rel="noopener" style="color:var(--red);font-weight:700;text-decoration:none">Cert</a>' : '') + '</td>' +
+      '</tr>';
+    if(open) html += '<tr class="detail"><td colspan="8">' + detail(r) + '</td></tr>';
+  });
+  html += '</tbody></table>';
+  $("list").innerHTML = html;
+  $("list").querySelectorAll("tr.req").forEach(function(tr){
+    tr.addEventListener("click", function(e){
+      if(e.target.closest("select, a, button, input, textarea")) return;
+      var id = tr.getAttribute("data-id"); OPEN[id] = !OPEN[id]; render();
+    });
+  });
+  $("list").querySelectorAll("select.st").forEach(function(sel){
+    sel.addEventListener("change", function(){ save(sel.getAttribute("data-id"), sel.getAttribute("data-row"), { status: sel.value }, sel.closest("tr")); });
+  });
+  $("list").querySelectorAll("[data-act]").forEach(function(b){
+    b.addEventListener("click", function(e){
+      e.preventDefault();
+      var id = b.getAttribute("data-id"), rowNo = b.getAttribute("data-row"), act = b.getAttribute("data-act");
+      var r = ROWS.filter(function(x){ return x.request_id === id; })[0]; if(!r) return;
+      if(act === "copy"){ copyText(r.checklist_text + "\n\nRequest " + r.request_id, b); }
+      if(act === "note"){
+        var note = ($("n_" + id).value || "").trim(), link = ($("l_" + id).value || "").trim();
+        if(!note && !link){ BOM.toast("Type a note or paste the certificate link first.", "err"); return; }
+        save(id, rowNo, { note: note, cert_link: link }, b.closest("tr"));
+      }
+    });
+  });
+}
+
+function detail(r){
+  var links = (r.sample_links || "").split(/\n+/).filter(Boolean);
+  var names = (r.sample_files || "").split(/,\s*/).filter(Boolean);
+  return '<div class="det">' +
+    '<div class="box"><h4>Broker checklist <span class="r"><button class="btn sm" data-act="copy" data-id="' + esc(r.request_id) + '" data-row="' + esc(r._row) + '">Copy</button></span></h4>' +
+      '<pre>' + esc(r.checklist_text || "(no checklist stored)") + '</pre>' +
+      '<h4 style="margin-top:12px">Customer\'s own words</h4><pre style="max-height:220px">' + esc(r.raw_email || "") + '</pre>' +
+    '</div>' +
+    '<div>' +
+      '<div class="box" style="margin-bottom:12px"><h4>Details</h4>' +
+        '<div style="font-size:12.5px;line-height:1.7">' +
+        '<b>Named insured:</b> ' + esc(r.named_insured) + '<br>' +
+        '<b>Certificate holder:</b> ' + esc(r.holder_name) + '<br>' + esc(r.holder_address).replace(/\n/g, "<br>") + '<br>' +
+        (r.deliver_to ? '<b>Deliver:</b> ' + esc(r.deliver_to) + '<br>' : '') +
+        (r.reason ? '<b>Reason:</b> ' + esc(r.reason) + '<br>' : '') +
+        (r.customer_contact ? '<b>Customer contact:</b> ' + esc(r.customer_contact) + '<br>' : '') +
+        '<b>Requested by:</b> ' + esc(r.requester_name) + (r.requester_email ? ' (<a href="mailto:' + esc(r.requester_email) + '" style="color:var(--red)">' + esc(r.requester_email) + '</a>)' : '') + '<br>' +
+        (r.portal ? '<b>Portal:</b> ' + esc(r.portal) + '<br>' : '') +
+        (r.flags ? '<b>Cannot provide as written:</b> ' + esc(r.flags) + '<br>' : '') +
+        '<b>Email:</b> ' + esc(r.mail_status || "") +
+        '</div>' +
+        (links.length ? '<h4 style="margin-top:10px">Sample / spec in Drive</h4><div class="links">' + links.map(function(u, i){ return '<a href="' + esc(u) + '" target="_blank" rel="noopener">' + esc(names[i] || u) + '</a>'; }).join('') + '</div>' : '') +
+        (r.cert_link ? '<h4 style="margin-top:10px">Delivered certificate</h4><div class="links"><a href="' + esc(r.cert_link) + '" target="_blank" rel="noopener">' + esc(r.cert_link) + '</a></div>' : '') +
+      '</div>' +
+      '<div class="box" style="margin-bottom:12px"><h4>Add a note or the certificate link</h4>' +
+        '<div class="frm"><textarea id="n_' + esc(r.request_id) + '" placeholder="What the broker said, what the customer kicked back, what changed"></textarea>' +
+        '<input id="l_' + esc(r.request_id) + '" placeholder="Link to the delivered certificate (Drive, portal, or email)" value="' + esc(r.cert_link || "") + '">' +
+        '<div><button class="btn solid sm" data-act="note" data-id="' + esc(r.request_id) + '" data-row="' + esc(r._row) + '">Save</button></div></div>' +
+      '</div>' +
+      '<div class="box"><h4>History</h4><div class="hist">' + esc(r.history || "") + (r.notes ? '\n\nNotes:\n' + esc(r.notes) : '') + '</div></div>' +
+    '</div></div>';
+}
+
+function save(id, rowNo, patch, tr){
+  var w = who(); if(!w){ BOM.toast("Type your name in 'Updating as' first, so the history shows who did it.", "err"); $("who").focus(); render(); return; }
+  BOM.setWho(w);
+  if(tr) tr.classList.add("busy");
+  var body = { kind:"vd_coi_status", request_id: id, row: rowNo, who: w };
+  Object.keys(patch).forEach(function(k){ body[k] = patch[k]; });
+  BOM.api(body).then(function(r){
+    if(tr) tr.classList.remove("busy");
+    if(!r || !r.ok){ BOM.toast((r && r.error) || "Could not save.", "err"); load(); return; }
+    ROWS = ROWS.map(function(x){ return x.request_id === id && r.row ? r.row : x; });
+    BOM.toast(patch.status ? "Status: " + patch.status : "Saved", "ok");
+    stats(); render();
+  }).catch(function(){ if(tr) tr.classList.remove("busy"); BOM.toast("Could not reach the service.", "err"); });
+}
+
+function copyText(t, btn){
+  function ok(){ var was = btn.textContent; btn.textContent = "Copied"; setTimeout(function(){ btn.textContent = was; }, 1600); }
+  if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(ok, fallback); else fallback();
+  function fallback(){ var ta = document.createElement("textarea"); ta.value = t; document.body.appendChild(ta); ta.select(); try{ document.execCommand("copy"); ok(); }catch(e){} document.body.removeChild(ta); }
+}
+
+BOM.init({ page:"coi", onReady:function(){
+  $("who").value = BOM.who();
+  $("who").addEventListener("change", function(){ BOM.setWho($("who").value.trim()); });
+  ["f_status", "f_mk"].forEach(function(id){
+    $(id).querySelectorAll("button").forEach(function(b){ b.addEventListener("click", function(){ setSeg(id, b.getAttribute("data-v")); render(); }); });
+  });
+  $("f_test").addEventListener("change", function(){ F.test = $("f_test").checked; stats(); render(); });
+  $("f_q").addEventListener("input", function(){ F.q = $("f_q").value.trim(); render(); });
+  $("reload").addEventListener("click", load);
+  var m = /[?#]open=([^&]+)/.exec(location.href); if(m) OPEN[decodeURIComponent(m[1])] = true;
+  load();
+}});
+</script>
+</body>
+</html>
