@@ -1,4 +1,4 @@
-/* CW Account Changes shared script. Build 2026-09-05b (live vendors first in the IC list).
+/* CW Account Changes shared script. Build 2026-09-05c (dropdown-style comboboxes with caret and arrow keys; pick-lists on free-text fields from history).
    Section metadata, field types, the entry form builder, the combobox, and the
    display helpers used by act-entry.html (Ops Hub), act-document.html,
    accounting-queue.html and accounts.html (BOM Hub). Loaded from
@@ -138,6 +138,7 @@ function vendorsFor(region){
 function fsmsFor(region){ return (CTX && CTX.lists && CTX.lists.fsms && CTX.lists.fsms[region]) || []; }
 function ctypesFor(region){ return (CTX && CTX.lists && CTX.lists.contract_types && CTX.lists.contract_types[region]) || []; }
 function reasons(){ return (CTX && CTX.lists && CTX.lists.ledger_reasons) || []; }
+function suggestFor(sectionKey, h){ var s = CTX && CTX.suggest; if(!s) return []; return s[sectionKey + "|" + h] || []; }
 function reasonNeedsIc(r){ var x = reasons().filter(function(o){ return o.reason === r; })[0]; return !!(x && x.needs_new_ic); }
 
 /* ---------- combobox: a text box with a filtered list and an exact-match rule ---------- */
@@ -148,13 +149,15 @@ function combo(host, opts){
   input.className = "cbx-in";
   var list = document.createElement("div"); list.className = "cbx-list hidden";
   var wrap = document.createElement("div"); wrap.className = "cbx";
-  wrap.appendChild(input); wrap.appendChild(list);
+  var caret = document.createElement("button"); caret.type = "button"; caret.className = "cbx-caret"; caret.title = "Show the list"; caret.tabIndex = -1;
+  caret.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
+  wrap.appendChild(input); wrap.appendChild(caret); wrap.appendChild(list);
   var tools = document.createElement("div"); tools.className = "cbx-tools";
   if(opts.onAdd){ var b = document.createElement("button"); b.type = "button"; b.className = "mini"; b.textContent = opts.addLabel || "+ Add new"; b.onclick = function(){ opts.onAdd(input.value.trim()); }; tools.appendChild(b); }
   if(opts.onRename){ var r = document.createElement("button"); r.type = "button"; r.className = "mini"; r.textContent = "Rename"; r.onclick = function(){ if(state.value) opts.onRename(state.value); else alert("Pick the one to rename first."); }; tools.appendChild(r); }
   if(tools.childNodes.length) wrap.appendChild(tools);
   host.innerHTML = ""; host.appendChild(wrap);
-  var state = { value: "", options: opts.options || [] };
+  var state = { value: "", options: opts.options || [], hits: [], sel: -1 };
   function norm(s){ return String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim(); }
   function labelOf(v){ var o = state.options.filter(function(x){ return x.value === v; })[0]; return o ? o.label : v; }
   function setValue(v, silent){
@@ -174,19 +177,29 @@ function combo(host, opts){
     });
     var starts = hits.filter(function(o){ return norm(o.label).indexOf(q) === 0; });
     var rest = hits.filter(function(o){ return norm(o.label).indexOf(q) !== 0; });
-    hits = starts.concat(rest).slice(0, 60);
+    hits = starts.concat(rest).slice(0, 80);
+    state.hits = hits; state.sel = hits.length ? 0 : -1;
     if(!hits.length){
       list.innerHTML = '<div class="cbx-none">No match' + (opts.onAdd ? '. Use <b>' + esc(opts.addLabel || "+ Add new") + '</b> to add "' + esc(input.value.trim()) + '".' : '.') + '</div>';
     } else {
       list.innerHTML = hits.map(function(o, i){
-        return '<div class="cbx-opt" data-i="' + i + '"><span>' + esc(o.label) + '</span>' + (o.tag ? '<em>' + esc(o.tag) + '</em>' : '') + (o.sub ? '<small>' + esc(o.sub) + '</small>' : '') + '</div>';
-      }).join("");
-      list.querySelectorAll(".cbx-opt").forEach(function(el, i){ el.onmousedown = function(e){ e.preventDefault(); setValue(hits[i].value); close(); }; });
+        return '<div class="cbx-opt' + (i === 0 ? ' sel' : '') + '" data-i="' + i + '"><span>' + esc(o.label) + '</span>' + (o.tag ? '<em>' + esc(o.tag) + '</em>' : '') + (o.sub ? '<small>' + esc(o.sub) + '</small>' : '') + '</div>';
+      }).join("") + (state.options.length > hits.length && q ? '' : (state.options.length > 80 && !q ? '<div class="cbx-none">Showing the first 80 of ' + state.options.length + '. Type to narrow the list.</div>' : ''));
+      list.querySelectorAll(".cbx-opt").forEach(function(el, i){ el.onmousedown = function(e){ e.preventDefault(); setValue(hits[i].value); close(); }; el.onmouseenter = function(){ mark(i); }; });
     }
-    list.classList.remove("hidden");
+    list.classList.remove("hidden"); wrap.classList.add("open");
   }
-  function close(){ list.classList.add("hidden"); }
+  function mark(i){
+    if(!state.hits.length) return;
+    state.sel = Math.max(0, Math.min(state.hits.length - 1, i));
+    list.querySelectorAll(".cbx-opt").forEach(function(el, j){ el.classList.toggle("sel", j === state.sel); });
+    var el = list.querySelector(".cbx-opt.sel"); if(el && el.scrollIntoView) el.scrollIntoView({ block: "nearest" });
+  }
+  function close(){ list.classList.add("hidden"); wrap.classList.remove("open"); }
+  function isOpen(){ return !list.classList.contains("hidden"); }
   input.addEventListener("focus", function(){ if(!state.value) render(); else { input.select(); render(); } });
+  input.addEventListener("click", function(){ if(!isOpen()) render(); });
+  caret.addEventListener("mousedown", function(e){ e.preventDefault(); if(isOpen()){ close(); } else { if(state.value) input.select(); input.focus(); input.value = ""; render(); if(state.value) input.value = labelOf(state.value); } });
   input.addEventListener("input", function(){ state.value = ""; input.classList.remove("ok"); render(); if(opts.onChange) opts.onChange(""); });
   input.addEventListener("blur", function(){
     setTimeout(function(){
@@ -203,8 +216,12 @@ function combo(host, opts){
   });
   input.addEventListener("keydown", function(e){
     if(e.key === "Escape"){ close(); return; }
-    if(e.key === "Enter"){ e.preventDefault(); var first = list.querySelector(".cbx-opt"); if(first && !list.classList.contains("hidden")){ first.onmousedown(e); } return; }
-    if(e.key === "ArrowDown"){ var f = list.querySelector(".cbx-opt"); if(f){ f.classList.add("sel"); } }
+    if(e.key === "ArrowDown"){ e.preventDefault(); if(!isOpen()) render(); else mark(state.sel + 1); return; }
+    if(e.key === "ArrowUp"){ e.preventDefault(); if(isOpen()) mark(state.sel - 1); return; }
+    if(e.key === "Enter" || e.key === "Tab"){
+      if(isOpen() && state.sel >= 0 && state.hits[state.sel]){ if(e.key === "Enter") e.preventDefault(); setValue(state.hits[state.sel].value); close(); }
+      return;
+    }
   });
   var api = {
     get: function(){ return state.value; },
@@ -283,11 +300,18 @@ function buildForm(host, sec, region, values, hooks){
       if(v !== "" && isNaN(Number(v)) && t !== "pct"){ el.type = "text"; el.value = v; el.className = "astyped"; el.title = "Typed as text in Excel."; }
       setInput(h, el);
       fields[h] = (function(e, tt){ return function(){ if(e.value === "") return ""; if(tt === "pct"){ var n = Number(e.value); return isNaN(n) ? e.value : (n > 1 ? n / 100 : n); } return e.type === "number" ? Number(e.value) : e.value; }; })(el, t);
-    } else if(t === "notes"){
-      el = document.createElement("textarea"); el.rows = 2; el.value = v; setInput(h, el);
-      fields[h] = (function(e){ return function(){ return e.value.trim(); }; })(el);
-    } else {
-      el = document.createElement("input"); el.type = "text"; el.value = v; setInput(h, el);
+    } else if(t === "notes" || t === "text"){
+      el = t === "notes" ? document.createElement("textarea") : document.createElement("input");
+      if(t === "notes") el.rows = 2; else el.type = "text";
+      el.value = v; setInput(h, el);
+      var sug = suggestFor(sec.key, h);
+      if(sug.length){
+        /* a pick-list of what the team usually types here; typing still works */
+        var pick = document.createElement("select"); pick.className = "pick"; pick.id = "p_" + h;
+        pick.innerHTML = '<option value="">Pick a usual entry, or type below</option>' + sug.map(function(s){ return '<option value="' + esc(s) + '"' + (s === String(v) ? ' selected' : '') + '>' + esc(s) + '</option>'; }).join("") ;
+        (function(sel, box){ sel.addEventListener("change", function(){ if(sel.value){ box.value = sel.value; box.dispatchEvent(new Event("input")); } }); box.addEventListener("input", function(){ if(sel.value && sel.value !== box.value) sel.value = ""; }); })(pick, el);
+        ctl(h).insertBefore(pick, el);
+      }
       fields[h] = (function(e){ return function(){ return e.value.trim(); }; })(el);
     }
   });
@@ -354,7 +378,9 @@ var CSS = '.frm-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(2
 '.fld input:focus,.fld select:focus,.fld textarea:focus{border-color:var(--red)}' +
 '.fld input.astyped{background:var(--gold-bg,#FFF4D6)}.fld textarea{resize:vertical}' +
 '.fld .help{display:block;font-size:11px;color:var(--grey);margin-top:3px;line-height:1.4}' +
-'.cbx{position:relative}.cbx-in.ok{border-color:#1E8E5A;background:#F3FBF6}.cbx-in.bad{border-color:var(--red);background:#FFF1F1}' +
+'.cbx{position:relative}.cbx .cbx-in{padding-right:34px;cursor:pointer}.cbx-in.ok{border-color:#1E8E5A;background:#F3FBF6}.cbx-in.bad{border-color:var(--red);background:#FFF1F1}' +
+'.cbx-caret{position:absolute;right:4px;top:4px;height:30px;width:28px;border:none;background:none;color:var(--grey);cursor:pointer;border-radius:6px;display:flex;align-items:center;justify-content:center}.cbx-caret:hover{background:var(--light);color:var(--black)}.cbx.open .cbx-caret svg{transform:rotate(180deg)}' +
+'.fld select.pick{margin-bottom:6px;color:var(--grey);font-size:12px;background:var(--light)}.fld select.pick:has(option:checked:not([value=""])){color:var(--black)}' +
 '.cbx-list{position:absolute;left:0;right:0;top:100%;z-index:50;background:#fff;border:1px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(45,42,38,.14);max-height:280px;overflow:auto;margin-top:3px}' +
 '.cbx-list.hidden{display:none}.cbx-opt{padding:7px 10px;font-size:12.5px;cursor:pointer;display:flex;flex-wrap:wrap;gap:0 8px;align-items:baseline}' +
 '.cbx-opt:hover,.cbx-opt.sel{background:#FFF4F4}.cbx-opt em{font-style:normal;font-size:10px;color:#fff;background:var(--grey);border-radius:4px;padding:1px 5px}' +
