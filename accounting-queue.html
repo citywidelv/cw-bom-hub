@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>Accounting Queue | CW BOM Hub</title>
-<!-- build 2026-09-05a. Every ACT and Ledger entry whose Accounting Complete box is
+<!-- build 2026-09-05b (full-width layout, tables fit without sideways scrolling). Every ACT and Ledger entry whose Accounting Complete box is
 still unchecked, both regions, both documents, oldest month first. Tick the box here
 or open the row on the full document (act-document.html). Reads vd_act_entries with
 open_only and writes vd_act_complete (ActLedger.gs). -->
@@ -15,6 +15,10 @@ open_only and writes vd_act_complete (ActLedger.gs). -->
 <link rel="icon" type="image/png" sizes="32x32" href="https://citywidelv.github.io/cw-ops-desk/favicon-32x32.png">
 <link rel="apple-touch-icon" sizes="180x180" href="https://citywidelv.github.io/cw-ops-desk/apple-touch-icon.png">
 <style>
+/* build d: full-width page so ACT and Ledger tables show every column without sideways scrolling */
+.head .bar,.nav-in,.wrap,.foot .fin{max-width:none}
+.wrap{padding:0 24px}
+@media(max-width:640px){.wrap{padding:0 12px}}
 .topbar{position:relative;z-index:5;margin-top:-46px}
 .topbar .qcard{padding:14px 18px 12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .topbar .qcard .qhead{margin:0}

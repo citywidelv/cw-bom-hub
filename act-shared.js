@@ -1,4 +1,4 @@
-/* CW Account Changes shared script. Build 2026-09-05c (dropdown-style comboboxes with caret and arrow keys; pick-lists on free-text fields from history).
+/* CW Account Changes shared script. Build 2026-09-05d (chat thread on every entry with a Chat column and needs-a-reply badge; section tables fit the page width, no sideways scrolling; c: dropdown-style comboboxes with caret and arrow keys; pick-lists on free-text fields from history).
    Section metadata, field types, the entry form builder, the combobox, and the
    display helpers used by act-entry.html (Ops Hub), act-document.html,
    accounting-queue.html and accounts.html (BOM Hub). Loaded from
@@ -115,7 +115,7 @@ function display(h, v){
   if(t === "yesno") return String(v);
   return String(v);
 }
-function numClass(h){ var t = FIELD[h]; return (t === "money" || t === "number" || t === "int" || t === "pct") ? " num" : ""; }
+function numClass(h){ var t = FIELD[h]; return (t === "money" || t === "number" || t === "int" || t === "pct") ? " num" : (t === "date" ? " dt" : ""); }
 
 /* ---------- context (lists, accounts, vendors) ---------- */
 var CTX = null;
@@ -387,15 +387,76 @@ var CSS = '.frm-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(2
 '.cbx-opt small{width:100%;color:var(--grey);font-size:11px}.cbx-none{padding:9px 10px;font-size:12px;color:var(--grey)}' +
 '.cbx-tools{display:flex;gap:6px;margin-top:5px}.mini{font:inherit;font-size:11px;font-weight:700;border:1.5px solid var(--border);background:#fff;border-radius:6px;padding:4px 9px;cursor:pointer;color:var(--black)}' +
 '.mini:hover{border-color:var(--red);color:var(--red)}' +
-'.act-tbl{width:100%;border-collapse:collapse;font-size:12.5px}.act-tbl th{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#fff;background:#203864;text-align:left;padding:8px 10px;white-space:nowrap}' +
-'.act-tbl td{padding:7px 10px;border-bottom:1px solid var(--border);vertical-align:top;max-width:360px}.act-tbl td.num,.act-tbl th.num{text-align:right;white-space:nowrap}' +
+'.act-tbl{width:100%;border-collapse:collapse;font-size:12px;table-layout:auto}.act-tbl th{font-size:10px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#fff;background:#203864;text-align:left;padding:8px 8px;white-space:normal;line-height:1.3;vertical-align:bottom}' +
+'.act-tbl td{padding:7px 8px;border-bottom:1px solid var(--border);vertical-align:top;overflow-wrap:break-word}.act-tbl td.num,.act-tbl th.num{text-align:right;white-space:nowrap}.act-tbl td.dt{white-space:nowrap}.act-tbl th.cb{width:52px;text-align:center}' +
 '.act-tbl tr.done td{background:#0AA6A9;color:#fff}.act-tbl tr.done td a{color:#fff}.act-tbl tr.void td{opacity:.5;text-decoration:line-through}' +
 '.act-tbl tr.row:hover td{outline:2px solid var(--gold,#E5B423);outline-offset:-2px;cursor:pointer}' +
 '.act-tbl td.cb{text-align:center;width:44px}.act-tbl td.cb input{width:18px;height:18px;cursor:pointer;accent-color:#0AA6A9}' +
 '.act-tbl tr.done td.cb input{accent-color:#fff}' +
-'.act-tbl td .who{display:block;font-size:10px;color:inherit;opacity:.75}';
+'.act-tbl td .who{display:block;font-size:10px;color:inherit;opacity:.75}' +
+'.act-tbl td.ch,.act-tbl th.ch{text-align:center;width:56px;white-space:nowrap}.act-tbl td.ch .chat{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;border-radius:999px;padding:2px 8px;background:var(--light,#F3F2F0);color:var(--grey,#636466)}' +
+'.act-tbl td.ch .chat.has{background:#203864;color:#fff}.act-tbl td.ch .chat.q{background:#E5B423;color:#2D2A26}.act-tbl td.ch .chat.none{opacity:.35}.act-tbl tr.done td.ch .chat{background:rgba(255,255,255,.25);color:#fff}.act-tbl tr.done td.ch .chat.q{background:#E5B423;color:#2D2A26}' +
+'.act-tbl td.ch .chat svg{width:12px;height:12px}' +
+'.cpanel{display:flex;flex-direction:column;min-height:0;height:100%}.cpanel .ch-head{font-size:12px;font-weight:700;color:var(--black);display:flex;align-items:center;gap:8px;padding-bottom:8px;border-bottom:1px solid var(--border)}' +
+'.cpanel .ch-head svg{width:14px;height:14px;flex:none}.cpanel .ch-head .n{font-size:10px;background:var(--light);color:var(--grey);border-radius:999px;padding:1px 7px}.cpanel .ch-head .oq{font-size:10px;background:#E5B423;color:#2D2A26;border-radius:999px;padding:1px 7px}' +
+'.cpanel .ch-list{flex:1;overflow:auto;min-height:120px;padding:10px 2px;display:flex;flex-direction:column;gap:8px}' +
+'.cmsg{background:var(--light,#F3F2F0);border-radius:10px;padding:8px 10px;font-size:12.5px;line-height:1.45;max-width:92%;align-self:flex-start;white-space:pre-wrap;overflow-wrap:break-word}.cmsg.me{align-self:flex-end;background:#EAF0FA}.cmsg.q{border-left:3px solid #E5B423}' +
+'.cmsg .cm-who{display:block;font-size:10.5px;color:var(--grey);margin-bottom:2px}.cmsg .cm-who b{color:var(--black)}.cmsg .cm-who .qtag{color:#8A5A00;font-weight:700;margin-left:6px}' +
+'.cpanel .ch-empty{color:var(--grey);font-size:12px;text-align:center;padding:18px 8px}' +
+'.cpanel .ch-form{border-top:1px solid var(--border);padding-top:8px;display:flex;flex-direction:column;gap:6px}.cpanel textarea{font:inherit;font-size:12.5px;border:1.5px solid var(--border);border-radius:8px;padding:8px 10px;min-height:64px;resize:vertical;width:100%;box-sizing:border-box}.cpanel textarea:focus{outline:none;border-color:var(--red)}' +
+'.cpanel .ch-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.cpanel .ch-row label{font-size:11.5px;display:inline-flex;gap:5px;align-items:center;color:var(--grey);cursor:pointer}.cpanel .ch-row .sp{flex:1}.cpanel .ch-hint{font-size:10.5px;color:var(--grey)}';
 
 function injectCss(){ if($("actSharedCss")) return; var s = document.createElement("style"); s.id = "actSharedCss"; s.textContent = CSS; document.head.appendChild(s); }
+
+/* ---------- chat (comments on an entry) ---------- */
+var CHAT_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8 8H8l-5 3 1.6-4.6A8 8 0 1 1 21 12z"/></svg>';
+function chatBadge(e){
+  var n = Number(e.comments) || 0;
+  if(!n) return '<span class="chat none" title="No chat notes yet. Open the entry to leave one.">' + CHAT_SVG + '</span>';
+  var t = n + (n === 1 ? " note" : " notes") + (e.last_comment ? ". Last " + e.last_comment : "") + (e.open_q ? ". Open question, needs a reply." : "");
+  return '<span class="chat has' + (e.open_q ? ' q' : '') + '" title="' + esc(t) + '">' + CHAT_SVG + n + (e.open_q ? ' ?' : '') + '</span>';
+}
+/* commentPanel(host, entry, {api(payload)->Promise, who()->string, onChange(summary)}) renders the thread and composer. */
+function commentPanel(host, e, opts){
+  opts = opts || {};
+  host.innerHTML = '<div class="cpanel"><div class="ch-head">' + CHAT_SVG + ' Chat on ' + esc(e.entry_id) + ' <span class="n" data-n>' + (Number(e.comments) || 0) + '</span>' + (e.open_q ? '<span class="oq" data-oq>open question</span>' : '<span class="oq hidden" data-oq>open question</span>') + '</div>' +
+    '<div class="ch-list" data-list><div class="ch-empty"><span class="spin"></span>Loading...</div></div>' +
+    '<div class="ch-form"><textarea data-text placeholder="Ask accounting a question or leave a note for whoever reads this entry next..." rows="3"></textarea>' +
+    '<div class="ch-row"><label title="Shows a gold ? on the row until someone answers"><input type="checkbox" data-q> Needs a reply</label><span class="sp"></span><span class="ch-hint">Ctrl+Enter posts</span><button class="btn solid" type="button" data-post>Post</button></div></div></div>';
+  var list = host.querySelector("[data-list]"), ta = host.querySelector("[data-text]"), qb = host.querySelector("[data-q]"), btn = host.querySelector("[data-post]");
+  var me = (opts.who && opts.who()) || "";
+  function render(rows){
+    if(!rows.length){ list.innerHTML = '<div class="ch-empty">No notes yet. Questions from accounting and answers from the FSM live here, next to the entry.</div>'; return; }
+    list.innerHTML = rows.map(function(c){
+      var mine = me && c.who && c.who.toLowerCase() === me.toLowerCase();
+      return '<div class="cmsg' + (mine ? ' me' : '') + (c.needs_reply ? ' q' : '') + '"><span class="cm-who"><b>' + esc(c.who || "?") + '</b> · ' + esc(c.when || "") + (c.needs_reply ? '<span class="qtag">needs a reply</span>' : '') + '</span>' + esc(c.text || "") + '</div>';
+    }).join("");
+    list.scrollTop = list.scrollHeight;
+  }
+  function summary(n, oq){ host.querySelector("[data-n]").textContent = n; host.querySelector("[data-oq]").classList.toggle("hidden", !oq); }
+  var rows = [];
+  opts.api({ kind: "vd_act_comments", entry_id: e.entry_id }).then(function(r){ rows = (r && r.comments) || []; render(rows); }).catch(function(){ list.innerHTML = '<div class="ch-empty">Could not load the chat.</div>'; });
+  function post(){
+    var text = ta.value.trim();
+    if(!text){ ta.focus(); return; }
+    var w = (opts.who && opts.who()) || "";
+    if(!w){ if(opts.needName) opts.needName(); return; }
+    me = w;
+    btn.disabled = true;
+    opts.api({ kind: "vd_act_comment_add", entry_id: e.entry_id, text: text, needs_reply: qb.checked }).then(function(r){
+      btn.disabled = false;
+      if(!r || !r.ok){ if(opts.toast) opts.toast((r && r.error) || "Could not post.", "err"); return; }
+      rows.push(r.comment); render(rows); ta.value = ""; qb.checked = false;
+      e.comments = r.comments; e.last_comment = r.last_comment; e.open_q = r.open_q;
+      summary(r.comments, r.open_q);
+      var tr = document.querySelector('tr[data-id="' + e.entry_id + '"] td.ch'); if(tr) tr.innerHTML = chatBadge(e);
+      if(opts.onChange) opts.onChange(e, r);
+    }).catch(function(){ btn.disabled = false; if(opts.toast) opts.toast("Could not reach the server.", "err"); });
+  }
+  btn.onclick = post;
+  ta.addEventListener("keydown", function(ev){ if((ev.ctrlKey || ev.metaKey) && ev.key === "Enter"){ ev.preventDefault(); post(); } });
+  return { post: post, focus: function(){ ta.focus(); } };
+}
 
 /* ---------- section table (viewer, queue) ---------- */
 /* entries for ONE section. opts = {onToggle(entry, checked), onOpen(entry), showMonth, showRegion} */
@@ -405,18 +466,20 @@ function sectionTable(sec, entries, opts){
   var hasExtras = entries.some(function(e){ return e.legacy_extras; });
   var h = '<div class="tblwrap"><table class="act-tbl"><thead><tr>';
   if(opts.showRegion) h += '<th>Region</th>';
-  if(opts.showMonth) h += '<th>Month</th>';
+  if(opts.showMonth) h += '<th class="dt">Month</th>';
   cols.forEach(function(c){ h += '<th class="' + numClass(c).trim() + '">' + esc(c) + '</th>'; });
   if(hasExtras) h += '<th>Excel extras</th>';
+  h += '<th class="ch" title="Chat notes and questions on the entry">Chat</th>';
   if(!sec.nocheck) h += '<th class="cb" title="Accounting Complete">Acct.<br>Complete</th>';
   h += '</tr></thead><tbody>';
-  if(!entries.length) h += '<tr><td colspan="' + (cols.length + 4) + '" class="empty">No entries.</td></tr>';
+  if(!entries.length) h += '<tr><td colspan="' + (cols.length + 5) + '" class="empty">No entries.</td></tr>';
   entries.forEach(function(e){
     h += '<tr class="row' + (e.complete ? ' done' : '') + (e.status === "Voided" ? ' void' : '') + '" data-id="' + esc(e.entry_id) + '">';
     if(opts.showRegion) h += '<td>' + esc(e.region) + '</td>';
-    if(opts.showMonth) h += '<td>' + esc(e.month) + '</td>';
+    if(opts.showMonth) h += '<td class="dt">' + esc(e.month) + '</td>';
     cols.forEach(function(c){ h += '<td class="' + numClass(c).trim() + '">' + esc(display(c, e.fields[c])) + '</td>'; });
     if(hasExtras) h += '<td><small>' + esc(e.legacy_extras || "") + '</small></td>';
+    h += '<td class="ch">' + chatBadge(e) + '</td>';
     if(!sec.nocheck) h += '<td class="cb"><input type="checkbox"' + (e.complete ? ' checked' : '') + ' title="' + esc(e.complete ? ("Checked by " + (e.completed_by || "?") + (e.completed_at ? " " + e.completed_at : "")) : "Not yet checked by accounting") + '">' + (e.complete && e.completed_by && e.completed_by !== "Excel (checked before import)" ? '<span class="who">' + esc(e.completed_by.split(" ")[0]) + '</span>' : '') + '</td>';
     h += '</tr>';
   });
@@ -427,7 +490,7 @@ function sectionTable(sec, entries, opts){
     var e = entries.filter(function(x){ return x.entry_id === id; })[0];
     var cb = tr.querySelector("td.cb input");
     if(cb) cb.addEventListener("click", function(ev){ ev.stopPropagation(); if(opts.onToggle) opts.onToggle(e, cb.checked, cb, tr); });
-    tr.addEventListener("click", function(ev){ if(ev.target.tagName === "INPUT") return; if(opts.onOpen) opts.onOpen(e, tr); });
+    tr.addEventListener("click", function(ev){ if(ev.target.tagName === "INPUT") return; if(ev.target.closest("td.ch") && opts.onChat){ opts.onChat(e, tr); return; } if(opts.onOpen) opts.onOpen(e, tr); });
   });
   return box;
 }
@@ -441,5 +504,5 @@ window.ACT = { WEBHOOK: WEBHOOK, OPS: OPS, BOM: BOMURL, REGIONS: REGIONS, REGION
   SECTIONS: SECTIONS, FIELD: FIELD, section: section, esc: esc, monthKey: monthKey, monthName: monthName, monthKeyOf: monthKeyOf, shiftMonth: shiftMonth, monthRange: monthRange,
   money: money, pct: pct, dateOut: dateOut, display: display, setContext: setContext, ctx: function(){ return CTX; },
   accountsFor: accountsFor, vendorsFor: vendorsFor, fsmsFor: fsmsFor, ctypesFor: ctypesFor, reasons: reasons, reasonNeedsIc: reasonNeedsIc,
-  combo: combo, buildForm: buildForm, injectCss: injectCss, sectionTable: sectionTable, post: post };
+  combo: combo, buildForm: buildForm, injectCss: injectCss, sectionTable: sectionTable, chatBadge: chatBadge, commentPanel: commentPanel, post: post };
 })();

@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>Account Changes | CW BOM Hub</title>
-<!-- build 2026-09-05b (month strip folds past years, Jump-to select). The digital ACT and Ledger Changes documents. Region and document
+<!-- build 2026-09-05c (chat panel in the entry drawer, Chat column; full-width layout, tables fit without sideways scrolling; b: month strip folds past years, Jump-to select). The digital ACT and Ledger Changes documents. Region and document
 switch at the top, one tab per month back to December 2024, sections laid out like the
 Excel with the same headers. Click a row to edit it, tick Accounting Complete on the
 right (the row turns CW Teal exactly like the workbook's conditional format). Search
@@ -19,6 +19,10 @@ URL: #/lv|nnv/act|ledger/YYYY-MM[/AC-000000] -->
 <link rel="icon" type="image/png" sizes="32x32" href="https://citywidelv.github.io/cw-ops-desk/favicon-32x32.png">
 <link rel="apple-touch-icon" sizes="180x180" href="https://citywidelv.github.io/cw-ops-desk/apple-touch-icon.png">
 <style>
+/* build d: full-width page so ACT and Ledger tables show every column without sideways scrolling */
+.head .bar,.nav-in,.wrap,.foot .fin{max-width:none}
+.wrap{padding:0 24px}
+@media(max-width:640px){.wrap{padding:0 12px}}
 .topbar{position:relative;z-index:5;margin-top:-46px}
 .topbar .qcard{padding:14px 18px 12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .topbar .qcard .qhead{margin:0}
@@ -60,12 +64,15 @@ URL: #/lv|nnv/act|ledger/YYYY-MM[/AC-000000] -->
 @keyframes sp{to{transform:rotate(360deg)}}
 .empty{padding:28px 18px;color:var(--grey);font-size:13px;text-align:center}
 /* drawer */
-.drawer{position:fixed;top:0;right:0;bottom:0;width:min(720px,100%);background:#fff;box-shadow:-12px 0 40px rgba(45,42,38,.22);z-index:200;transform:translateX(102%);transition:transform .18s;display:flex;flex-direction:column}
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(1100px,100%);background:#fff;box-shadow:-12px 0 40px rgba(45,42,38,.22);z-index:200;transform:translateX(102%);transition:transform .18s;display:flex;flex-direction:column}
 .drawer.open{transform:none}
 .drawer .dh{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
 .drawer .dh h3{font-size:15px;margin:0}
 .drawer .dh .x{margin-left:auto;font:inherit;border:none;background:none;font-size:22px;cursor:pointer;color:var(--grey)}
-.drawer .db{padding:16px 18px;overflow:auto;flex:1}
+.drawer .db{padding:0;overflow:hidden;flex:1;display:flex;min-height:0}
+.drawer .dl{flex:1 1 auto;min-width:0;overflow:auto;padding:16px 18px}
+.drawer .dc{flex:0 0 340px;border-left:1px solid var(--border);padding:14px 16px;background:#FBFAF9;display:flex;flex-direction:column;min-height:0}
+@media(max-width:900px){.drawer .db{flex-direction:column;overflow:auto}.drawer .dl{overflow:visible;flex:none}.drawer .dc{flex:none;border-left:none;border-top:1px solid var(--border);min-height:360px}}
 .drawer .df{padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .drawer .meta{font-size:11.5px;color:var(--grey);line-height:1.7;background:var(--light);border-radius:8px;padding:8px 12px;margin-bottom:14px}
 .drawer .meta b{color:var(--black)}
@@ -224,7 +231,7 @@ function renderMonth(){
       (sec.entry ? '<a href="' + esc(ACT.OPS + "act-entry.html?region=" + S.region + "&doc=" + S.doc + "&month=" + S.month + "&section=" + sec.key) + '" target="_blank" rel="noopener">+ Add</a>' : '');
     var tv = b.querySelector(".tv"); if(tv) tv.onclick = function(e){ e.preventDefault(); S.showVoid = !S.showVoid; renderMonth(); };
     host.appendChild(b);
-    host.appendChild(ACT.sectionTable(sec, shown, { onToggle: toggle, onOpen: openDrawer }));
+    host.appendChild(ACT.sectionTable(sec, shown, { onToggle: toggle, onOpen: openDrawer, onChat: openChat }));
   });
   if(!any){
     var e = document.createElement("div"); e.className = "note"; e.style.marginTop = "14px";
@@ -244,7 +251,7 @@ function renderResults(){
     var rows = bySec[sec.name]; if(!rows || !rows.length) return;
     var b = document.createElement("div"); b.className = "banner"; b.innerHTML = '<span>' + esc(sec.name) + '</span><span class="cnt">' + rows.length + '</span>';
     host.appendChild(b);
-    host.appendChild(ACT.sectionTable(sec, rows, { showMonth: true, onToggle: toggle, onOpen: openDrawer }));
+    host.appendChild(ACT.sectionTable(sec, rows, { showMonth: true, onToggle: toggle, onOpen: openDrawer, onChat: openChat }));
   });
   $("body").innerHTML = ""; $("body").appendChild(host);
   $("clearq").onclick = function(e){ e.preventDefault(); S.q = ""; $("q").value = ""; load(); };
@@ -267,18 +274,19 @@ function toggle(e, checked, cb, tr){
 }
 
 /* ---------- drawer (edit) ---------- */
-var FORM = null, CUR = null;
-function openDrawer(e){
+var FORM = null, CUR = null, CHAT = null;
+function openChat(e){ openDrawer(e, true); }
+function openDrawer(e, focusChat){
   CUR = e;
   var sec = ACT.section(e.section);
   var d = $("drawer");
   d.innerHTML = '<div class="dh"><h3>' + esc(sec.name) + ' · ' + esc(e.entry_id) + '</h3>' + (e.status === "Voided" ? '<span class="pill void">Voided</span>' : '') + (/legacy/.test(e.layout || "") ? '<span class="pill legacy">older layout</span>' : '') + '<button class="x" type="button" title="Close">&times;</button></div>' +
-    '<div class="db"><div class="meta"><b>' + esc(e.region) + ' ' + (e.doc === "Ledger" ? "Ledger Changes" : "ACT") + '</b> · ' + esc(e.month) + '<br>' +
+    '<div class="db"><div class="dl"><div class="meta"><b>' + esc(e.region) + ' ' + (e.doc === "Ledger" ? "Ledger Changes" : "ACT") + '</b> · ' + esc(e.month) + '<br>' +
     'Logged ' + esc(e.created || "") + (e.created_by ? ' by ' + esc(e.created_by) : '') + (e.updated && e.updated !== e.created ? ' · edited ' + esc(e.updated) + (e.updated_by ? ' by ' + esc(e.updated_by) : '') : '') + '<br>' +
     (e.complete ? 'Accounting Complete: checked' + (e.completed_by ? ' by ' + esc(e.completed_by) : '') + (e.completed_at ? ' ' + esc(e.completed_at) : '') : 'Accounting Complete: not yet') +
     (e.source ? '<br>Source: ' + esc(e.source) : '') + (e.legacy_extras ? '<br>Excel extras: ' + esc(e.legacy_extras) : '') + '</div>' +
     '<div class="row"><div class="fld"><label>Month</label><select id="d_month"></select></div><div class="fld"><label>Region</label><select id="d_region"><option' + (e.region === "Las Vegas" ? ' selected' : '') + '>Las Vegas</option><option' + (e.region !== "Las Vegas" ? ' selected' : '') + '>Northern Nevada</option></select></div></div>' +
-    '<div id="d_form"></div><div id="d_probs" class="probs hidden"></div><div class="hist" id="d_hist">Loading history...</div></div>' +
+    '<div id="d_form"></div><div id="d_probs" class="probs hidden"></div><div class="hist" id="d_hist">Loading history...</div></div><div class="dc" id="d_chat"></div></div>' +
     '<div class="df"><button class="btn solid" id="d_save" type="button">Save changes</button>' +
     (sec.nocheck ? '' : '<label class="chk" style="font-size:12px;display:inline-flex;gap:6px;align-items:center;margin-left:6px"><input type="checkbox" id="d_cb"' + (e.complete ? ' checked' : '') + '> Accounting Complete</label>') +
     '<span style="flex:1"></span>' + (e.status === "Voided" ? '<button class="btn" id="d_restore" type="button">Restore</button>' : '<button class="btn" id="d_void" type="button" title="Hides the entry and keeps it in the sheet">Void</button>') + '</div>';
@@ -293,6 +301,8 @@ function openDrawer(e){
   if($("d_restore")) $("d_restore").onclick = function(){ api({ kind: "vd_act_void", entry_id: e.entry_id, restore: true }).then(function(r){ if(r && r.ok){ toast("Restored " + e.entry_id); closeDrawer(); load(); } else toast((r && r.error) || "Could not restore.", "err"); }); };
   $("shade").classList.remove("hidden"); d.classList.add("open");
   $("shade").onclick = closeDrawer;
+  CHAT = ACT.commentPanel($("d_chat"), e, { api: api, who: who, toast: toast, needName: function(){ toast("Put your name in 'Working as' first.", "err"); $("who").focus(); } });
+  if(focusChat) setTimeout(function(){ CHAT.focus(); }, 200);
   api({ kind: "vd_act_log", id: e.entry_id, limit: 40 }).then(function(r){
     var rows = (r && r.rows) || [];
     $("d_hist").innerHTML = rows.length ? '<b>History</b><br>' + rows.map(function(x){ return esc(x.when) + ' · ' + esc(x.who || "?") + ' · ' + esc(x.action) + (x.field ? ' · ' + esc(x.field) + ': ' + esc(x.old) + ' → ' + esc(x.new) : (x.new ? ' · ' + esc(x.new) : '')); }).join("<br>") : '<b>History</b><br>No changes since the import.';
