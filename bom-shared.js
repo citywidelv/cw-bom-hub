@@ -1,4 +1,4 @@
-/* CW BOM Hub shared script. Build 2026-09-05a (adds COI Requests menu).
+/* CW BOM Hub shared script. Build 2026-09-05b (one unlock per device via cw-auth.js; COI Requests menu).
    Gate, header, cascading nav, webhook helper, Asana project registry.
    Every page: <link bom.css> ... <div id="gate"> + <div id="app" class="hidden">, then
    this file, then BOM.init({page:'...'}). Data lives in Google Sheets through the
@@ -78,14 +78,16 @@ var MENU = [
     {label:"Send Vendor Notices", href:OPS + "bc-notices.html", tag:"Ops Hub"},
     {ghead:"Records"},
     {label:"Background Checks on File (Sheet)", href:SHEET, tag:"Sheet"},
-    {label:"Verified First", href:"https://app.verifiedfirst.com/", tag:"Site"}
+    {label:"Verified First (portal)", href:"https://portal.verifiedfirst.com/#/dashboard", tag:"Site"}
   ]},
   { label:"COI Requests", icon:"sheet", page:"coi", items:[
     {label:"Request Log & Status", href:"coi-log.html", tag:"Hub"},
     {label:"New COI Request for a Customer", href:OPS + "coi-request.html", tag:"Ops Hub"},
     {ghead:"Records"},
     {label:"COI Requests (Sheet tab)", href:"https://docs.google.com/spreadsheets/d/1ymbqR7LMvA7sbgZe2Ro5o2dNiXhP08Tn9Hw1b-H5AeQ/edit", tag:"Sheet"},
-    {label:"Vendor COIs Coming In (Ops Hub)", href:OPS + "insurance.html", tag:"Ops Hub"}
+    {label:"Vendor COIs Coming In (Ops Hub)", href:OPS + "insurance.html", tag:"Ops Hub"},
+    {ghead:"Broker Portal"},
+    {label:"InsurLink (Vertafore)", href:"https://insurlink.vertafore.com/end-insured/2260313c6a34459c8a098ede23d21fb7/2094911/overview", tag:"Site"}
   ]},
   { label:"Onboarding", icon:"clip", items:[
     {ghead:"Las Vegas"},
@@ -115,7 +117,9 @@ var MENU = [
     {ghead:"Office"},
     {label:"Office Management board", href:asanaUrl("1211522761691094"), tag:"Asana"}
   ]},
-  { label:"Team & Admin", icon:"home", items:[
+  { label:"Team & Admin", icon:"home", page:"emails", items:[
+    {label:"Team Emails by Position", href:"team-emails.html", tag:"Hub"},
+    {ghead:"Hubs"},
     {label:"Nevada Team Portal", href:PORTAL},
     {label:"Ops Hub", href:OPS},
     {label:"Vendor Hub", href:VS},
@@ -123,7 +127,14 @@ var MENU = [
     {label:"ADP TotalSource", href:"https://workforcenow.adp.com/"},
     {label:"CW Sales CRM", href:"https://gocitywide.crm.dynamics.com/main.aspx"},
     {label:"Employee Uniforms", href:OPS + "uniforms.html", tag:"Ops Hub"},
-    {label:"Order CW Merch", href:"https://cwlv.printful.me/"}
+    {label:"Order CW Merch", href:"https://cwlv.printful.me/"},
+    {ghead:"Team Apps"},
+    {label:"Microsoft Bookings", href:"https://bookings.cloud.microsoft/bookings/homepage"},
+    {label:"Slack", href:"https://slack.com/signin"},
+    {label:"Jotform", href:"https://www.jotform.com/myforms/"},
+    {ghead:"Ordering"},
+    {label:"Amazon Business", href:"https://www.amazon.com/business"},
+    {label:"City Wide Company Store", href:"https://shopcitywide.mybrightsites.com/"}
   ]}
 ];
 
@@ -167,8 +178,7 @@ function renderHeader(page){
   };
   document.getElementById("bomsignout").addEventListener("click", function(e){
     e.preventDefault();
-    try{ localStorage.removeItem(KEY); }catch(x){}
-    location.reload();
+    if(window.CWAuth) CWAuth.signOut(); else location.reload();
   });
   document.addEventListener("click", function(e){
     if(e.target && e.target.closest && e.target.closest(".nitem")) return;
@@ -188,7 +198,11 @@ function api(payload){
   payload = payload || {};
   payload.passcode = PASS;
   return fetch(WEBHOOK, { method:"POST", headers:{"Content-Type":"text/plain"}, body: JSON.stringify(payload) })
-    .then(function(r){ return r.json(); });
+    .then(function(r){ return r.json(); })
+    .then(function(r){
+      if(r && r.ok === false && /passcode/i.test(r.error || "") && window.CWAuth && !isHubPage()){ CWAuth.locked("bom", r.error); }
+      return r;
+    });
 }
 
 /* ---------- toast ---------- */
@@ -205,52 +219,53 @@ function toast(msg, kind){
 function gateHtml(){
   return '<div class="box"><img src="' + LOGO + '" alt="City Wide Facility Solutions">' +
     '<div class="k">Business Operations Management</div><h1>BOM Hub</h1>' +
-    '<p>Internal team access. Enter the BOM Hub passcode to continue.</p>' +
+    '<p id="gnote">Internal team access. Enter the BOM Hub passcode once. This browser stays unlocked until the passcode changes.</p>' +
     '<input type="password" id="pc" placeholder="Passcode" autocomplete="current-password" autofocus>' +
     '<button id="enter">Enter</button><div class="err" id="gerr"></div>' +
     '<div class="note">Ask TJ if you do not have the passcode. The Ops Hub team passcode also works.</div>' +
     '<a class="backlink" href="' + PORTAL + '">&larr; Back to the Nevada Team Portal</a></div>';
 }
-function tryPass(pass, isAuto, onOk){
-  var btn = document.getElementById("enter"), err = document.getElementById("gerr");
-  err.textContent = "";
-  if(!pass){ err.textContent = "Enter the passcode."; return; }
-  btn.disabled = true; btn.textContent = "Checking...";
-  fetch(WEBHOOK, { method:"POST", headers:{"Content-Type":"text/plain"}, body: JSON.stringify({ kind:"vd_bom_auth", passcode: pass }) })
-  .then(function(r){ return r.json(); })
-  .then(function(r){
-    btn.disabled = false; btn.textContent = "Enter";
-    if(r && r.ok){
-      PASS = pass;
-      try{ localStorage.setItem(KEY, pass); }catch(e){}
-      document.getElementById("gate").classList.add("hidden");
-      document.getElementById("app").classList.remove("hidden");
-      onOk(r);
-    } else {
-      if(isAuto){ try{ localStorage.removeItem(KEY); }catch(e){} }
-      else err.textContent = (r && r.error) ? r.error : "That passcode is not right.";
-      if(isAuto && isAuto.next) isAuto.next();
-    }
-  })
-  .catch(function(){
-    btn.disabled = false; btn.textContent = "Enter";
-    err.textContent = "Could not reach the server. Check your connection and try again.";
-  });
+/* One unlock per device (cw-auth.js, shared by every internal page on this origin).
+   The hub page keeps the passcode box. Sub pages never show one: without a cached
+   passcode they bounce to the hub gate with ?next= and come straight back. A rotated
+   passcode is rejected by the server on the next call, which clears the cache and
+   bounces the same way. The BOM-only passcode (script property BOM_PASSCODE) unlocks
+   the BOM kinds; the team passcode unlocks everything. */
+function isHubPage(){
+  var p = location.pathname.replace(/\/+$/, "");
+  return /\/cw-bom-hub$/.test(p) || /\/cw-bom-hub\/index\.html$/.test(p);
 }
-
 function init(opts){
   opts = opts || {};
   var gate = document.getElementById("gate");
-  gate.innerHTML = gateHtml();
   renderHeader(opts.page);
   function go(r){ if(opts.onReady) opts.onReady(r); }
-  document.getElementById("enter").addEventListener("click", function(){ tryPass(document.getElementById("pc").value.trim(), false, go); });
-  document.getElementById("pc").addEventListener("keydown", function(e){ if(e.key === "Enter") tryPass(this.value.trim(), false, go); });
-  // Saved BOM passcode first, then the Ops Hub team passcode cached on this same origin.
-  var saved = "", ops = "";
-  try{ saved = localStorage.getItem(KEY) || ""; ops = localStorage.getItem(OPSKEY) || ""; }catch(e){}
-  if(saved) tryPass(saved, { next: function(){ if(ops) tryPass(ops, {}, go); } }, go);
-  else if(ops) tryPass(ops, {}, go);
+  if(!window.CWAuth){
+    gate.innerHTML = '<div class="box"><h1>BOM Hub</h1><p>The sign-in script did not load. Reload the page.</p></div>';
+    return;
+  }
+  if(isHubPage()){
+    gate.innerHTML = gateHtml();
+    CWAuth.hubGate({ hub:"bom", kind:"vd_bom_auth", input:"pc", button:"enter", err:"gerr", note:"gnote", gate:"gate", app:"app",
+      onUnlock: function(pass, r){ PASS = pass; go(r); },
+      onValidated: function(r, pass){ PASS = pass; } });
+    return;
+  }
+  var p = CWAuth.require({ hub:"bom" });
+  if(!p) return;
+  PASS = p;
+  gate.classList.add("hidden");
+  document.getElementById("app").classList.remove("hidden");
+  go(null);
+  CWAuth.validate(p, "vd_bom_auth").then(function(res){
+    if(res.ok === false){
+      var b = CWAuth.getBom();
+      if(b && b !== p){
+        PASS = b;
+        CWAuth.validate(b, "vd_bom_auth").then(function(r2){ if(r2.ok === false) CWAuth.locked("bom", "Wrong passcode."); });
+      } else CWAuth.locked("bom", "Wrong passcode.");
+    }
+  });
 }
 
 function who(){

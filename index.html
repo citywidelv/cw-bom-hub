@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>CW BOM Hub | Business Operations Management</title>
-<!-- build 2026-09-05a (COI request card + quick link). The Business Operations Manager's front door, a sibling of the
+<!-- build 2026-09-05b (Team Emails quick link; gate via cw-auth.js in bom-shared.js). 2026-09-05a (COI request card + quick link). The Business Operations Manager's front door, a sibling of the
 Ops Hub (cw-ops-desk) on the Nevada Team Portal. Passcode gate checked server-side
 (kind vd_bom_auth in VendorDirectory.gs; the Ops Hub team passcode also unlocks it).
 Background check roster and Asana boards are read live; nothing on this page is
@@ -159,6 +159,7 @@ hardcoded data except the menu tree and the Asana project registry in bom-shared
 </div></footer>
 </div>
 
+<script src="https://citywidelv.github.io/cw-ops-desk/cw-auth.js"></script>
 <script src="bom-shared.js"></script>
 <script>
 (function(){
@@ -172,6 +173,7 @@ var QUICK = [
   { label:"NNV Onboarding", href:BOM.asanaUrl("1211502025994509"), icon:"clip" },
   { label:"Exhibit A Requests", href:BOM.asanaUrl("1211502025570262"), icon:"sheet" },
   { label:"COI Requests", href:"coi-log.html", icon:"sheet" },
+  { label:"Team Emails by Position", href:"team-emails.html", icon:"mail" },
   { label:"Add a Vendor", href:BOM.OPS + "vendor-add.html", icon:"users" },
   { label:"Ops Hub", href:BOM.OPS, icon:"board", dark:true }
 ];
