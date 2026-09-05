@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Account Changes | CW BOM Hub</title>
+<!-- build 2026-09-05a. The digital ACT and Ledger Changes documents. Region and document
+switch at the top, one tab per month back to December 2024, sections laid out like the
+Excel with the same headers. Click a row to edit it, tick Accounting Complete on the
+right (the row turns CW Teal exactly like the workbook's conditional format). Search
+runs across every month. Reads and writes through ActLedger.gs (kinds vd_act_entries,
+vd_act_update, vd_act_complete, vd_act_void). New entries come from the Ops Hub page
+act-entry.html. Nothing on this page deletes anything: Void hides a row and keeps it.
+URL: #/lv|nnv/act|ledger/YYYY-MM[/AC-000000] -->
+<link rel="stylesheet" href="bom.css">
+<link rel="stylesheet" href="https://citywidelv.github.io/cw-base.css">
+<link rel="icon" href="https://citywidelv.github.io/cw-ops-desk/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="https://citywidelv.github.io/cw-ops-desk/favicon-32x32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://citywidelv.github.io/cw-ops-desk/apple-touch-icon.png">
+<style>
+.topbar{position:relative;z-index:5;margin-top:-46px}
+.topbar .qcard{padding:14px 18px 12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.topbar .qcard .qhead{margin:0}
+.topbar .who{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--grey)}
+.topbar .who input{font-size:11.5px;border:1px solid var(--border);border-radius:6px;padding:5px 8px;width:140px}
+.topbar .sp{flex:1}
+.seg{display:inline-flex;border:1.5px solid var(--border);border-radius:9px;overflow:hidden;background:#fff}
+.seg button{border:none;background:none;font-size:11.5px;font-weight:700;padding:7px 11px;cursor:pointer;color:var(--grey);white-space:nowrap;min-height:34px}
+.seg button.on{background:var(--black);color:#fff}
+.seg button:hover:not(.on){background:var(--light);color:var(--black)}
+.srch{position:relative;min-width:240px}
+.srch svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--grey)}
+.srch input{width:100%;font-size:12.5px;border:1.5px solid var(--border);border-radius:16px;padding:8px 12px 8px 32px;background:var(--light);outline:none}
+.srch input:focus{border-color:var(--red);background:#fff}
+.months{display:flex;gap:6px;overflow-x:auto;padding:10px 18px;border-bottom:1px solid var(--border);scrollbar-width:thin;align-items:center}
+.months .yr{font-size:10.5px;font-weight:700;letter-spacing:.1em;color:var(--grey);padding:0 6px 0 2px;flex:none}
+.mchip{flex:none;font:inherit;font-size:12px;font-weight:700;border:1.5px solid var(--border);background:#fff;color:var(--grey);border-radius:999px;padding:6px 12px;cursor:pointer;display:inline-flex;gap:6px;align-items:center}
+.mchip.on{background:var(--navy,#203864);border-color:var(--navy,#203864);color:#fff}
+.mchip .n{font-size:10px;background:var(--light);color:var(--grey);border-radius:999px;padding:0 6px;min-width:18px;text-align:center}
+.mchip.on .n{background:rgba(255,255,255,.2);color:#fff}
+.mchip.none{opacity:.55}.mchip.legacy{border-style:dashed}
+.docwrap{padding:0 18px 18px}
+.banner{background:var(--navy,#203864);color:#fff;font-weight:700;font-size:13px;padding:8px 12px;border-radius:8px 8px 0 0;margin-top:18px;display:flex;align-items:center;gap:10px}
+.banner .sp{flex:1}
+.banner a{color:#fff;font-size:11.5px;font-weight:700;text-decoration:none;border:1px solid rgba(255,255,255,.5);border-radius:6px;padding:3px 9px}
+.banner a:hover{background:rgba(255,255,255,.15)}
+.banner .cnt{font-size:11px;font-weight:400;opacity:.8}
+.tblwrap{overflow-x:auto;border:1px solid var(--border);border-top:none;border-radius:0 0 8px 8px;background:#fff}
+.act-tbl td.empty{color:var(--grey);text-align:center;padding:14px}
+.note{font-size:12px;color:var(--grey)}
+.legacy{background:var(--gold-bg);border:1px solid #F3DFA0;border-radius:8px;padding:10px 14px;font-size:12.5px;margin-top:14px;line-height:1.5}
+.loading{color:var(--grey);font-size:12.5px;padding:18px}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--red);border-radius:50%;animation:sp .8s linear infinite;vertical-align:middle;margin-right:8px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.empty{padding:28px 18px;color:var(--grey);font-size:13px;text-align:center}
+/* drawer */
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(720px,100%);background:#fff;box-shadow:-12px 0 40px rgba(45,42,38,.22);z-index:200;transform:translateX(102%);transition:transform .18s;display:flex;flex-direction:column}
+.drawer.open{transform:none}
+.drawer .dh{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.drawer .dh h3{font-size:15px;margin:0}
+.drawer .dh .x{margin-left:auto;font:inherit;border:none;background:none;font-size:22px;cursor:pointer;color:var(--grey)}
+.drawer .db{padding:16px 18px;overflow:auto;flex:1}
+.drawer .df{padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.drawer .meta{font-size:11.5px;color:var(--grey);line-height:1.7;background:var(--light);border-radius:8px;padding:8px 12px;margin-bottom:14px}
+.drawer .meta b{color:var(--black)}
+.drawer .hist{font-size:11.5px;color:var(--grey);line-height:1.6;margin-top:14px;border-top:1px solid var(--border);padding-top:10px}
+.drawer .probs{background:#FFF1F1;border:1px solid #F3C2C5;border-radius:8px;padding:8px 12px;font-size:12px;color:var(--red-dark,#B01F27);margin-top:10px}
+.drawer .row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.drawer .row .fld{flex:1;min-width:160px}
+.shade{position:fixed;inset:0;background:rgba(45,42,38,.3);z-index:190}
+.pill.void{background:var(--red-bg,#FDE8E9);color:var(--red)}
+.pill.legacy{background:var(--gold-bg);color:#8A5A00}
+.results .banner{background:var(--black)}
+@media(max-width:640px){.topbar .qcard{gap:8px}.srch{min-width:100%}}
+</style>
+</head>
+<body>
+<div id="gate" class="gate"></div>
+<div id="app" class="hidden">
+<header class="head" id="bomhead"></header>
+
+<section class="hero slim">
+<div class="bg" style="background-image:url('https://citywidelv.github.io/cw-ops-desk/images/fsm-uniform-hallway.jpg')"></div>
+<div class="wrap">
+<div class="htext">
+<div class="kick">Business Operations Management</div>
+<h1>Account Changes</h1>
+<p>The ACT and Ledger Changes documents for both regions, one tab per month, laid out like the workbooks. Click a row to edit it. Tick Accounting Complete when the work is done and the row turns teal.</p>
+</div>
+</div>
+</section>
+
+<div class="wrap topbar">
+<div class="qcard">
+<div class="seg" id="region"><button data-v="lv" class="on">Las Vegas</button><button data-v="nnv">Northern Nevada</button></div>
+<div class="seg" id="doc"><button data-v="act" class="on">ACT</button><button data-v="ledger">Ledger Changes</button></div>
+<span class="who">Working as <input id="who" placeholder="Your name"></span>
+<span class="sp"></span>
+<div class="srch"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><input id="q" type="search" placeholder="Search every month: account, IC, note, amount" autocomplete="off"></div>
+<a class="btn solid" id="addlink" href="#" target="_blank" rel="noopener">+ Log a change</a>
+<a class="btn" id="queuelink" href="accounting-queue.html">Accounting queue</a>
+<a class="btn" id="sheetlink" href="#" target="_blank" rel="noopener">Sheet</a>
+<button class="btn" id="reload" type="button">Refresh</button>
+</div>
+</div>
+
+<div class="wrap">
+<div class="card">
+<div class="months" id="months"></div>
+<div id="body" class="docwrap"><div class="loading"><span class="spin"></span>Loading...</div></div>
+</div>
+<p class="note" style="margin-top:12px">Imported from the four Excel workbooks on Sep 5 2026. Entries the workbooks already had checked show as checked by "Excel (checked before import)". Months before January 2026 in Las Vegas came from the hidden 2025 tabs in an older layout; see the note on those months.</p>
+</div>
+
+<footer class="foot"><div class="fin">
+<b>City Wide Facility Solutions</b> &middot; BOM Hub &middot; Internal use only &middot; Something missing? Tell TJ. &middot; <a href="https://www.gocitywide.com" target="_blank" rel="noopener">GoCityWide.com</a>
+<span class="fr">Las Vegas<span>&bull;</span>Reno</span>
+</div></footer>
+</div>
+
+<div id="shade" class="shade hidden"></div>
+<div id="drawer" class="drawer"></div>
+
+<script src="https://citywidelv.github.io/cw-ops-desk/cw-auth.js"></script>
+<script src="bom-shared.js"></script>
+<script src="act-shared.js"></script>
+<script>
+var esc = ACT.esc;
+function $(id){ return document.getElementById(id); }
+var S = { region: "lv", doc: "act", month: ACT.monthKey(), q: "", entries: [], ctx: null, open: null };
+var toast = BOM.toast;
+function who(){ return ($("who").value || "").trim() || BOM.who() || ""; }
+function regionName(){ return ACT.KEY_REGION[S.region]; }
+function docName(){ return S.doc === "ledger" ? "Ledger" : "ACT"; }
+function api(p){ p.by = who(); return BOM.api(p); }
+
+/* ---------- url ---------- */
+function readHash(){
+  var m = /^#\/(lv|nnv)\/(act|ledger)(?:\/(\d{4}-\d{2}))?(?:\/(AC-\d+))?/.exec(location.hash || "");
+  if(m){ S.region = m[1]; S.doc = m[2]; if(m[3]) S.month = m[3]; S.open = m[4] || null; }
+}
+function writeHash(){ var h = "#/" + S.region + "/" + S.doc + "/" + S.month; if(history.replaceState) history.replaceState(null, "", h); else location.hash = h; }
+function setSeg(id, v){ $(id).querySelectorAll("button").forEach(function(b){ b.classList.toggle("on", b.getAttribute("data-v") === v); }); }
+
+/* ---------- months ---------- */
+function monthsPresent(){ return (S.ctx && S.ctx.months && S.ctx.months[regionName() + "|" + docName()]) || []; }
+function renderMonths(){
+  var present = {}; monthsPresent().forEach(function(m){ present[m.key] = m.n; });
+  var keys = Object.keys(present).sort();
+  var first = keys.length ? keys[0] : ACT.monthKey();
+  var last = ACT.shiftMonth(ACT.monthKey(), 1);
+  if(keys.length && keys[keys.length - 1] > last) last = keys[keys.length - 1];
+  var all = ACT.monthRange(first, last);
+  var h = "", yr = "";
+  all.forEach(function(k){
+    var y = k.slice(0, 4); if(y !== yr){ yr = y; h += '<span class="yr">' + y + '</span>'; }
+    var n = present[k] || 0;
+    var legacy = S.region === "lv" && S.doc === "act" && k < "2026-01";
+    h += '<button type="button" class="mchip' + (k === S.month ? ' on' : '') + (n ? '' : ' none') + (legacy ? ' legacy' : '') + '" data-k="' + k + '" title="' + (legacy ? 'Hidden 2025 tab in the Excel, older layout' : '') + '">' + ACT.monthName(k).replace(/ \d{4}$/, "") + '<span class="n">' + n + '</span></button>';
+  });
+  $("months").innerHTML = h;
+  $("months").querySelectorAll(".mchip").forEach(function(b){ b.addEventListener("click", function(){ S.month = b.getAttribute("data-k"); S.q = ""; $("q").value = ""; writeHash(); load(); }); });
+  var on = $("months").querySelector(".mchip.on"); if(on) on.scrollIntoView({ inline: "center", block: "nearest" });
+}
+
+/* ---------- load + render ---------- */
+function load(){
+  renderMonths();
+  $("addlink").href = ACT.OPS + "act-entry.html?region=" + S.region + "&doc=" + S.doc + "&month=" + S.month;
+  $("body").innerHTML = '<div class="loading"><span class="spin"></span>Loading ' + esc(ACT.monthName(S.month)) + '...</div>';
+  var p = S.q ? { kind: "vd_act_entries", region: regionName(), doc: docName(), q: S.q, include_voided: true } : { kind: "vd_act_entries", region: regionName(), doc: docName(), month_key: S.month, include_voided: true };
+  api(p).then(function(r){
+    if(!r || !r.ok){ $("body").innerHTML = '<div class="empty">' + esc((r && r.error) || "Could not load.") + '</div>'; return; }
+    S.entries = r.entries || [];
+    if(S.q) renderResults(); else renderMonth();
+    if(S.open){ var e = S.entries.filter(function(x){ return x.entry_id === S.open; })[0]; S.open = null; if(e) openDrawer(e); }
+  }).catch(function(){ $("body").innerHTML = '<div class="empty">Could not reach the service. Refresh to try again.</div>'; });
+}
+function sectionsForDoc(){ return ACT.SECTIONS.filter(function(s){ return s.doc === docName(); }); }
+function renderMonth(){
+  var host = document.createElement("div");
+  var legacy = S.entries.some(function(e){ return /legacy/.test(e.layout || ""); });
+  if(legacy){
+    var d = document.createElement("div"); d.className = "legacy";
+    d.innerHTML = '<b>Older layout.</b> This month came from a hidden tab in the Excel that used the 2024-2025 layout. Most of those tabs had their column headers deleted, so column names were matched to the current layout by position and section order; anything that had no home in the current layout is shown under <b>Excel extras</b>. Price changes and IC pay changes both appear under Billing Changes.';
+    host.appendChild(d);
+  }
+  var any = false;
+  sectionsForDoc().forEach(function(sec){
+    var rows = S.entries.filter(function(e){ return e.section === sec.name; });
+    var voided = rows.filter(function(e){ return e.status === "Voided"; }).length;
+    var shown = rows.filter(function(e){ return e.status !== "Voided" || S.showVoid; });
+    if(!rows.length && (sec.legacy || sec.nocheck || legacy)) return;  /* legacy-only and inventory sections only show when they have rows; older-layout months show only the sections they had */
+    any = any || rows.length > 0;
+    var b = document.createElement("div"); b.className = "banner";
+    b.innerHTML = '<span>' + esc(sec.name) + ' — ' + esc(ACT.monthName(S.month)) + '</span><span class="cnt">' + shown.length + (shown.length === 1 ? ' entry' : ' entries') + (voided ? ', ' + voided + ' voided' : '') + '</span><span class="sp"></span>' +
+      (voided ? '<a href="#" class="tv">' + (S.showVoid ? 'Hide voided' : 'Show voided') + '</a>' : '') +
+      (sec.entry ? '<a href="' + esc(ACT.OPS + "act-entry.html?region=" + S.region + "&doc=" + S.doc + "&month=" + S.month + "&section=" + sec.key) + '" target="_blank" rel="noopener">+ Add</a>' : '');
+    var tv = b.querySelector(".tv"); if(tv) tv.onclick = function(e){ e.preventDefault(); S.showVoid = !S.showVoid; renderMonth(); };
+    host.appendChild(b);
+    host.appendChild(ACT.sectionTable(sec, shown, { onToggle: toggle, onOpen: openDrawer }));
+  });
+  if(!any){
+    var e = document.createElement("div"); e.className = "note"; e.style.marginTop = "14px";
+    e.textContent = "Nothing logged for " + ACT.monthName(S.month) + " yet. Use + Add on a section or + Log a change.";
+    host.insertBefore(e, host.firstChild);
+  }
+  $("body").innerHTML = ""; $("body").appendChild(host);
+}
+function renderResults(){
+  var host = document.createElement("div"); host.className = "results";
+  var t = document.createElement("div"); t.className = "note"; t.style.marginTop = "14px";
+  t.innerHTML = '<b>' + S.entries.length + '</b> result' + (S.entries.length === 1 ? '' : 's') + ' for "' + esc(S.q) + '" across every month of the ' + esc(regionName()) + ' ' + (S.doc === "ledger" ? "Ledger Changes" : "ACT") + '. <a href="#" id="clearq">Clear search</a>';
+  host.appendChild(t);
+  var bySec = {};
+  S.entries.forEach(function(e){ (bySec[e.section] = bySec[e.section] || []).push(e); });
+  sectionsForDoc().forEach(function(sec){
+    var rows = bySec[sec.name]; if(!rows || !rows.length) return;
+    var b = document.createElement("div"); b.className = "banner"; b.innerHTML = '<span>' + esc(sec.name) + '</span><span class="cnt">' + rows.length + '</span>';
+    host.appendChild(b);
+    host.appendChild(ACT.sectionTable(sec, rows, { showMonth: true, onToggle: toggle, onOpen: openDrawer }));
+  });
+  $("body").innerHTML = ""; $("body").appendChild(host);
+  $("clearq").onclick = function(e){ e.preventDefault(); S.q = ""; $("q").value = ""; load(); };
+}
+
+/* ---------- accounting complete ---------- */
+function toggle(e, checked, cb, tr){
+  if(!who()){ cb.checked = !checked; toast("Put your name in 'Working as' first so the check is signed.", "err"); $("who").focus(); return; }
+  cb.disabled = true;
+  api({ kind: "vd_act_complete", entry_id: e.entry_id, complete: checked }).then(function(r){
+    cb.disabled = false;
+    if(!r || !r.ok){ cb.checked = !checked; toast((r && r.error) || "Could not save.", "err"); return; }
+    e.complete = r.complete; e.completed_by = r.completed_by; e.completed_at = r.completed_at;
+    tr.classList.toggle("done", e.complete);
+    cb.title = e.complete ? "Checked by " + e.completed_by + " " + e.completed_at : "Not yet checked by accounting";
+    var w = tr.querySelector("td.cb .who"); if(w) w.remove();
+    if(e.complete){ var s = document.createElement("span"); s.className = "who"; s.textContent = (e.completed_by || "").split(" ")[0]; cb.parentNode.appendChild(s); }
+    toast(e.complete ? "Checked " + e.entry_id : "Unchecked " + e.entry_id);
+  }).catch(function(){ cb.disabled = false; cb.checked = !checked; toast("Could not reach the server.", "err"); });
+}
+
+/* ---------- drawer (edit) ---------- */
+var FORM = null, CUR = null;
+function openDrawer(e){
+  CUR = e;
+  var sec = ACT.section(e.section);
+  var d = $("drawer");
+  d.innerHTML = '<div class="dh"><h3>' + esc(sec.name) + ' · ' + esc(e.entry_id) + '</h3>' + (e.status === "Voided" ? '<span class="pill void">Voided</span>' : '') + (/legacy/.test(e.layout || "") ? '<span class="pill legacy">older layout</span>' : '') + '<button class="x" type="button" title="Close">&times;</button></div>' +
+    '<div class="db"><div class="meta"><b>' + esc(e.region) + ' ' + (e.doc === "Ledger" ? "Ledger Changes" : "ACT") + '</b> · ' + esc(e.month) + '<br>' +
+    'Logged ' + esc(e.created || "") + (e.created_by ? ' by ' + esc(e.created_by) : '') + (e.updated && e.updated !== e.created ? ' · edited ' + esc(e.updated) + (e.updated_by ? ' by ' + esc(e.updated_by) : '') : '') + '<br>' +
+    (e.complete ? 'Accounting Complete: checked' + (e.completed_by ? ' by ' + esc(e.completed_by) : '') + (e.completed_at ? ' ' + esc(e.completed_at) : '') : 'Accounting Complete: not yet') +
+    (e.source ? '<br>Source: ' + esc(e.source) : '') + (e.legacy_extras ? '<br>Excel extras: ' + esc(e.legacy_extras) : '') + '</div>' +
+    '<div class="row"><div class="fld"><label>Month</label><select id="d_month"></select></div><div class="fld"><label>Region</label><select id="d_region"><option' + (e.region === "Las Vegas" ? ' selected' : '') + '>Las Vegas</option><option' + (e.region !== "Las Vegas" ? ' selected' : '') + '>Northern Nevada</option></select></div></div>' +
+    '<div id="d_form"></div><div id="d_probs" class="probs hidden"></div><div class="hist" id="d_hist">Loading history...</div></div>' +
+    '<div class="df"><button class="btn solid" id="d_save" type="button">Save changes</button>' +
+    (sec.nocheck ? '' : '<label class="chk" style="font-size:12px;display:inline-flex;gap:6px;align-items:center;margin-left:6px"><input type="checkbox" id="d_cb"' + (e.complete ? ' checked' : '') + '> Accounting Complete</label>') +
+    '<span style="flex:1"></span>' + (e.status === "Voided" ? '<button class="btn" id="d_restore" type="button">Restore</button>' : '<button class="btn" id="d_void" type="button" title="Hides the entry and keeps it in the sheet">Void</button>') + '</div>';
+  var keys = ACT.monthRange(ACT.shiftMonth(e.month_key, -6), ACT.shiftMonth(ACT.monthKey(), 3)); if(keys.indexOf(e.month_key) < 0) keys.push(e.month_key); keys.sort();
+  $("d_month").innerHTML = keys.map(function(k){ return '<option value="' + k + '"' + (k === e.month_key ? ' selected' : '') + '>' + ACT.monthName(k) + '</option>'; }).join("");
+  var vals = {}; Object.keys(e.fields).forEach(function(k){ vals[k] = e.fields[k]; }); vals.__history = true; vals.__month = e.month_key;
+  FORM = ACT.buildForm($("d_form"), sec, e.region, vals, {});
+  d.querySelector(".x").onclick = closeDrawer;
+  $("d_save").onclick = saveDrawer;
+  if($("d_cb")) $("d_cb").onchange = function(){ var tr = document.querySelector('tr[data-id="' + e.entry_id + '"]'); var cb = tr ? tr.querySelector("td.cb input") : null; if(cb){ cb.checked = $("d_cb").checked; toggle(e, cb.checked, cb, tr); } };
+  if($("d_void")) $("d_void").onclick = function(){ if(!confirm("Void " + e.entry_id + "? It is hidden from the document but kept in the sheet and can be restored.")) return; api({ kind: "vd_act_void", entry_id: e.entry_id }).then(function(r){ if(r && r.ok){ toast("Voided " + e.entry_id); closeDrawer(); load(); } else toast((r && r.error) || "Could not void.", "err"); }); };
+  if($("d_restore")) $("d_restore").onclick = function(){ api({ kind: "vd_act_void", entry_id: e.entry_id, restore: true }).then(function(r){ if(r && r.ok){ toast("Restored " + e.entry_id); closeDrawer(); load(); } else toast((r && r.error) || "Could not restore.", "err"); }); };
+  $("shade").classList.remove("hidden"); d.classList.add("open");
+  $("shade").onclick = closeDrawer;
+  api({ kind: "vd_act_log", id: e.entry_id, limit: 40 }).then(function(r){
+    var rows = (r && r.rows) || [];
+    $("d_hist").innerHTML = rows.length ? '<b>History</b><br>' + rows.map(function(x){ return esc(x.when) + ' · ' + esc(x.who || "?") + ' · ' + esc(x.action) + (x.field ? ' · ' + esc(x.field) + ': ' + esc(x.old) + ' → ' + esc(x.new) : (x.new ? ' · ' + esc(x.new) : '')); }).join("<br>") : '<b>History</b><br>No changes since the import.';
+  }).catch(function(){ $("d_hist").textContent = ""; });
+}
+function closeDrawer(){ $("drawer").classList.remove("open"); $("shade").classList.add("hidden"); CUR = null; }
+document.addEventListener("keydown", function(e){ if(e.key === "Escape") closeDrawer(); });
+function saveDrawer(){
+  if(!CUR || !FORM) return;
+  if(!who()){ toast("Put your name in 'Working as' first.", "err"); $("who").focus(); return; }
+  var fields = FORM.read();
+  var p = FORM.problems().filter(function(x){ return !/is not in the list/.test(x); });   /* history may hold names not in the directories */
+  if(p.length){ $("d_probs").innerHTML = p.map(esc).join("<br>"); $("d_probs").classList.remove("hidden"); return; }
+  $("d_probs").classList.add("hidden");
+  /* combos: keep the typed text when no directory match was picked (history names) */
+  Object.keys(FORM.combos).forEach(function(h){ if(!FORM.combos[h].get() && FORM.combos[h].typed()) fields[h] = FORM.combos[h].typed(); });
+  fields.month = ACT.monthName($("d_month").value);
+  fields.region = $("d_region").value;
+  $("d_save").disabled = true;
+  api({ kind: "vd_act_update", entry_id: CUR.entry_id, fields: fields }).then(function(r){
+    $("d_save").disabled = false;
+    if(!r || !r.ok){ toast((r && r.error) || "Could not save.", "err"); return; }
+    toast(r.changed ? "Saved " + r.changed + " change" + (r.changed === 1 ? "" : "s") + " to " + CUR.entry_id : "Nothing changed");
+    closeDrawer(); load();
+  }).catch(function(){ $("d_save").disabled = false; toast("Could not reach the server.", "err"); });
+}
+
+/* ---------- boot ---------- */
+function bindTop(){
+  $("region").addEventListener("click", function(e){ var b = e.target.closest("button"); if(!b) return; S.region = b.getAttribute("data-v"); setSeg("region", S.region); writeHash(); load(); });
+  $("doc").addEventListener("click", function(e){ var b = e.target.closest("button"); if(!b) return; S.doc = b.getAttribute("data-v"); setSeg("doc", S.doc); writeHash(); load(); });
+  var qt; $("q").addEventListener("input", function(){ clearTimeout(qt); qt = setTimeout(function(){ S.q = $("q").value.trim(); if(S.q.length && S.q.length < 2) return; load(); }, 350); });
+  $("reload").addEventListener("click", function(){ boot(true); });
+  $("who").value = BOM.who(); $("who").addEventListener("change", function(){ BOM.setWho($("who").value.trim()); });
+  window.addEventListener("hashchange", function(){ readHash(); S.q = ""; $("q").value = ""; setSeg("region", S.region); setSeg("doc", S.doc); load(); });
+}
+function boot(again){
+  readHash(); setSeg("region", S.region); setSeg("doc", S.doc);
+  BOM.api({ kind: "vd_act_context" }).then(function(r){
+    if(!r || !r.ok){ $("body").innerHTML = '<div class="empty">' + esc((r && r.error) || "Could not load the lists.") + '</div>'; return; }
+    S.ctx = r; ACT.setContext(r); ACT.injectCss();
+    if(r.sheet_url) $("sheetlink").href = r.sheet_url;
+    load();
+  });
+}
+BOM.init({ page: "act", onReady: function(){ bindTop(); boot(); } });
+</script>
+</body>
+</html>

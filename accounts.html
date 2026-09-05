@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Account Directory | CW BOM Hub</title>
+<!-- build 2026-09-05a. The account directory that feeds the ACT and Ledger entry
+form (act-entry.html on the Ops Hub). Seeded Sep 5 2026 from the CRM "JS & OS Clients"
+exports plus every name in the four Excel Key lists. Ops and the BOM both add and
+rename accounts here or from the entry form; an add or rename emails the other side
+(Config tab) and the record sits in the "Needs verification" queue until someone
+confirms it matches CRM and Business Central. Also shows the IC names from the Excel
+Keys that are not in the CW Vendor Directory yet, with a one-click add.
+Reads vd_act_accounts / vd_act_context; writes vd_act_account_save, vd_act_account_verify,
+vd_act_vendor_quick (ActLedger.gs). ?id=A-LV-0001 opens that account. -->
+<link rel="stylesheet" href="bom.css">
+<link rel="stylesheet" href="https://citywidelv.github.io/cw-base.css">
+<link rel="icon" href="https://citywidelv.github.io/cw-ops-desk/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="https://citywidelv.github.io/cw-ops-desk/favicon-32x32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="https://citywidelv.github.io/cw-ops-desk/apple-touch-icon.png">
+<style>
+.topbar{position:relative;z-index:5;margin-top:-46px}
+.topbar .qcard{padding:14px 18px 12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.topbar .qcard .qhead{margin:0}
+.topbar .who{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--grey)}
+.topbar .who input{font-size:11.5px;border:1px solid var(--border);border-radius:6px;padding:5px 8px;width:140px}
+.topbar .sp{flex:1}
+.seg{display:inline-flex;border:1.5px solid var(--border);border-radius:9px;overflow:hidden;background:#fff}
+.seg button{border:none;background:none;font-size:11.5px;font-weight:700;padding:7px 11px;cursor:pointer;color:var(--grey);white-space:nowrap;min-height:34px}
+.seg button.on{background:var(--black);color:#fff}
+.filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;padding:12px 18px;border-bottom:1px solid var(--border)}
+.filters select{font-size:11.5px;border:1.5px solid var(--border);border-radius:8px;padding:7px 9px;background:#fff}
+.srch{position:relative;margin-left:auto;min-width:240px}
+.srch svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--grey)}
+.srch input{width:100%;font-size:12.5px;border:1.5px solid var(--border);border-radius:16px;padding:8px 12px 8px 32px;background:var(--light);outline:none}
+.srch input:focus{border-color:var(--red);background:#fff}
+.showing{font-size:11.5px;color:var(--grey);padding:8px 18px;border-bottom:1px solid var(--light)}
+.tblwrap{overflow-x:auto}
+.tbl{width:100%;border-collapse:collapse}
+.tbl th{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--grey);text-align:left;padding:10px 12px;border-bottom:1px solid var(--border);white-space:nowrap;background:#fff}
+.tbl td{padding:8px 12px;border-bottom:1px solid var(--light);vertical-align:middle;font-size:12.5px}
+.tbl tr.r{cursor:pointer}.tbl tr.r:hover td{background:#fffbf2}
+.tbl .nm{font-weight:700}.tbl .nm small{display:block;font-weight:400;color:var(--grey);font-size:11px}
+.tbl .muted{color:var(--grey);font-size:11.5px;white-space:nowrap}
+.pill.act{background:var(--green-bg);color:var(--green)}.pill.pro{background:var(--blue-bg);color:var(--blue)}.pill.rev{background:var(--gold-bg);color:#8A5A00}
+.pill.past{background:var(--light);color:var(--grey)}.pill.ven{background:#EAF6F6;color:#0A7F82}.pill.unv{background:var(--red-bg,#FDE8E9);color:var(--red)}
+.queue{background:var(--gold-bg);border:1px solid #F3DFA0;border-radius:10px;padding:12px 16px;margin-bottom:14px}
+.queue h3{font-size:13px;margin-bottom:6px}
+.queue .note{font-size:12px;color:#5b4a1a}
+.gap{padding:14px 18px;border-top:1px solid var(--border)}
+.gap h3{font-size:13px;margin-bottom:4px}
+.gap .note{font-size:12px;color:var(--grey);margin-bottom:8px}
+.gap .chips{display:flex;flex-wrap:wrap;gap:6px}
+.gap .chip{font-size:11.5px;border:1px solid var(--border);border-radius:999px;padding:4px 10px;background:#fff;display:inline-flex;gap:6px;align-items:center}
+.gap .chip button{font:inherit;font-size:10.5px;font-weight:700;border:none;background:var(--red);color:#fff;border-radius:999px;padding:2px 8px;cursor:pointer}
+.loading{color:var(--grey);font-size:12.5px;padding:18px}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--red);border-radius:50%;animation:sp .8s linear infinite;vertical-align:middle;margin-right:8px}
+@keyframes sp{to{transform:rotate(360deg)}}
+.empty{padding:28px 18px;color:var(--grey);font-size:13px;text-align:center}
+.stat.rev .n{color:#B86A00}.stat.act .n{color:var(--green)}
+/* drawer */
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(640px,100%);background:#fff;box-shadow:-12px 0 40px rgba(45,42,38,.22);z-index:200;transform:translateX(102%);transition:transform .18s;display:flex;flex-direction:column}
+.drawer.open{transform:none}
+.drawer .dh{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+.drawer .dh h3{font-size:15px;margin:0}
+.drawer .dh .x{margin-left:auto;font:inherit;border:none;background:none;font-size:22px;cursor:pointer;color:var(--grey)}
+.drawer .db{padding:16px 18px;overflow:auto;flex:1}
+.drawer .df{padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.drawer .meta{font-size:11.5px;color:var(--grey);line-height:1.7;background:var(--light);border-radius:8px;padding:8px 12px;margin-bottom:14px}
+.drawer .meta b{color:var(--black)}
+.drawer .err{color:var(--red);font-size:12px;margin-top:8px;min-height:16px}
+.shade{position:fixed;inset:0;background:rgba(45,42,38,.3);z-index:190}
+</style>
+</head>
+<body>
+<div id="gate" class="gate"></div>
+<div id="app" class="hidden">
+<header class="head" id="bomhead"></header>
+
+<section class="hero slim">
+<div class="bg" style="background-image:url('https://citywidelv.github.io/cw-ops-desk/images/fsm-uniform-hallway.jpg')"></div>
+<div class="wrap">
+<div class="htext">
+<div class="kick">Business Operations Management</div>
+<h1>Account Directory</h1>
+<p>Every customer account for both regions, the list the account change form picks from. Add or rename an account here; the other side is emailed to confirm the name matches CRM and Business Central, and the record stays in the verification queue until it is checked.</p>
+</div>
+</div>
+</section>
+
+<div class="wrap topbar">
+<div class="qcard">
+<div class="qhead"><span class="bar-accent"></span><h2>Accounts</h2></div>
+<span class="who">Working as <input id="who" placeholder="Your name"></span>
+<span class="sp"></span>
+<button class="btn solid" id="addbtn" type="button">+ Add an account</button>
+<a class="btn" id="sheetlink" href="#" target="_blank" rel="noopener">Sheet</a>
+<button class="btn" id="reload" type="button">Refresh</button>
+</div>
+</div>
+
+<div class="wrap section"><div class="stats" id="stats"></div></div>
+
+<div class="wrap">
+<div id="queue"></div>
+<div class="card">
+<div class="filters">
+<div class="seg" id="f_region"><button data-v="" class="on">Both regions</button><button data-v="Las Vegas">Las Vegas</button><button data-v="Northern Nevada">Northern Nevada</button></div>
+<select id="f_status"><option value="">Any status</option><option>Active</option><option>Prospect</option><option>Needs review</option><option>Past Client</option><option>Inactive</option><option>Vendor</option><option>Other</option></select>
+<select id="f_ver"><option value="">Verified or not</option><option value="no">Needs verification</option><option value="yes">Verified</option></select>
+<select id="f_key"><option value="">In the Excel Keys or not</option><option value="act">In the ACT Key</option><option value="ledger">In the Ledger Key</option><option value="none">In neither Key</option></select>
+<div class="srch"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><input id="q" type="search" placeholder="Name, BC number, FSM, city, former name" autocomplete="off"></div>
+</div>
+<div class="showing" id="showing"></div>
+<div class="tblwrap"><div id="list" class="loading"><span class="spin"></span>Loading accounts...</div></div>
+<div class="gap" id="gap"></div>
+</div>
+</div>
+
+<footer class="foot"><div class="fin">
+<b>City Wide Facility Solutions</b> &middot; BOM Hub &middot; Internal use only &middot; Something missing? Tell TJ. &middot; <a href="https://www.gocitywide.com" target="_blank" rel="noopener">GoCityWide.com</a>
+<span class="fr">Las Vegas<span>&bull;</span>Reno</span>
+</div></footer>
+</div>
+
+<div id="shade" class="shade hidden"></div>
+<div id="drawer" class="drawer"></div>
+
+<script src="https://citywidelv.github.io/cw-ops-desk/cw-auth.js"></script>
+<script src="bom-shared.js"></script>
+<script src="act-shared.js"></script>
+<script>
+var esc = ACT.esc;
+function $(id){ return document.getElementById(id); }
+var ROWS = [], CTX = null, F = { region: "", status: "", ver: "", key: "", q: "" };
+var toast = BOM.toast;
+var Q = {}; (location.search || "").replace(/^\?/, "").split("&").forEach(function(p){ if(!p) return; var i = p.indexOf("="); Q[decodeURIComponent(p.slice(0, i < 0 ? p.length : i))] = decodeURIComponent(i < 0 ? "" : p.slice(i + 1)); });
+function who(){ return ($("who").value || "").trim() || BOM.who() || ""; }
+function api(p){ p.by = who(); return BOM.api(p); }
+function isTrue(v){ return v === true || String(v).toUpperCase() === "TRUE"; }
+function pillCls(s){ return s === "Active" ? "act" : s === "Prospect" ? "pro" : s === "Needs review" ? "rev" : s === "Vendor" ? "ven" : "past"; }
+
+function load(){
+  $("list").innerHTML = '<div class="loading"><span class="spin"></span>Loading accounts...</div>';
+  api({ kind: "vd_act_accounts" }).then(function(r){
+    if(!r || !r.ok){ $("list").innerHTML = '<div class="empty">' + esc((r && r.error) || "Could not load.") + '</div>'; return; }
+    ROWS = r.accounts || [];
+    if(r.sheet_url) $("sheetlink").href = r.sheet_url + (r.gids && r.gids["Accounts Las Vegas"] ? "#gid=" + r.gids["Accounts Las Vegas"] : "");
+    stats(); queue(); render(); gap();
+    if(Q.id){ var a = ROWS.filter(function(x){ return x.account_id === Q.id; })[0]; if(a) openDrawer(a); Q.id = ""; }
+  }).catch(function(){ $("list").innerHTML = '<div class="empty">Could not reach the service. Refresh to try again.</div>'; });
+}
+function stats(){
+  var live = ROWS.filter(function(a){ return !isTrue(a.hide); });
+  var c = { lv: 0, nnv: 0, act: 0, unv: 0, rev: 0 };
+  live.forEach(function(a){ if(a.region === "Las Vegas") c.lv++; else c.nnv++; if(a.status === "Active") c.act++; if(!isTrue(a.verified)) c.unv++; if(a.status === "Needs review") c.rev++; });
+  $("stats").innerHTML =
+    '<a class="stat" href="#" data-f="all"><div class="n">' + live.length + '</div><div class="l">Accounts</div></a>' +
+    '<a class="stat" href="#" data-f="lv"><div class="n">' + c.lv + '</div><div class="l">Las Vegas</div></a>' +
+    '<a class="stat" href="#" data-f="nnv"><div class="n">' + c.nnv + '</div><div class="l">Northern Nevada</div></a>' +
+    '<a class="stat act" href="#" data-f="active"><div class="n">' + c.act + '</div><div class="l">Active</div></a>' +
+    '<a class="stat rev" href="#" data-f="unv"><div class="n">' + c.unv + '</div><div class="l">Needs verification</div></a>';
+  $("stats").querySelectorAll(".stat").forEach(function(a){ a.addEventListener("click", function(e){ e.preventDefault(); var f = a.getAttribute("data-f");
+    F = { region: f === "lv" ? "Las Vegas" : f === "nnv" ? "Northern Nevada" : "", status: f === "active" ? "Active" : "", ver: f === "unv" ? "no" : "", key: "", q: "" };
+    setSeg("f_region", F.region); $("f_status").value = F.status; $("f_ver").value = F.ver; $("f_key").value = ""; $("q").value = ""; render(); }); });
+}
+function queue(){
+  var q = ROWS.filter(function(a){ return !isTrue(a.hide) && !isTrue(a.verified) && a.added_by !== "Excel import"; });
+  var keyOnly = ROWS.filter(function(a){ return !isTrue(a.hide) && !isTrue(a.verified) && a.added_by === "Excel import"; }).length;
+  if(!q.length && !keyOnly){ $("queue").innerHTML = ""; return; }
+  $("queue").innerHTML = '<div class="queue"><h3>Needs verification</h3><div class="note">' +
+    (q.length ? '<b>' + q.length + '</b> account' + (q.length === 1 ? '' : 's') + ' added or renamed by the team since the import. Open each one, check the name against CRM and Business Central, and mark it Verified. ' : '') +
+    (keyOnly ? '<b>' + keyOnly + '</b> name' + (keyOnly === 1 ? '' : 's') + ' from the Excel Key lists did not match the CRM export under that spelling (status Needs review). Verify or rename them as you go; they are not blocking anyone.' : '') +
+    '</div></div>';
+}
+function setSeg(id, v){ $(id).querySelectorAll("button").forEach(function(b){ b.classList.toggle("on", b.getAttribute("data-v") === v); }); }
+function visible(){
+  var q = F.q.toLowerCase();
+  return ROWS.filter(function(a){
+    if(isTrue(a.hide)) return false;
+    if(F.region && a.region !== F.region) return false;
+    if(F.status && a.status !== F.status) return false;
+    if(F.ver === "no" && isTrue(a.verified)) return false;
+    if(F.ver === "yes" && !isTrue(a.verified)) return false;
+    if(F.key === "act" && !isTrue(a.in_act_key)) return false;
+    if(F.key === "ledger" && !isTrue(a.in_ledger_key)) return false;
+    if(F.key === "none" && (isTrue(a.in_act_key) || isTrue(a.in_ledger_key))) return false;
+    if(q){ var hay = [a.name, a.bc_customer_no, a.fsm, a.city, a.former_names, a.account_id, a.industry, a.relationship_js].join(" ").toLowerCase(); if(hay.indexOf(q) < 0) return false; }
+    return true;
+  }).sort(function(a, b){ return a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1; });
+}
+function render(){
+  var rows = visible();
+  $("showing").innerHTML = 'Showing <b>' + rows.length + '</b> of ' + ROWS.filter(function(a){ return !isTrue(a.hide); }).length;
+  if(!rows.length){ $("list").innerHTML = '<div class="empty">No accounts match.</div>'; return; }
+  var h = '<table class="tbl"><thead><tr><th>Account</th><th>Region</th><th>Status</th><th>FSM</th><th>BC no.</th><th>Verified</th><th>Keys</th></tr></thead><tbody>';
+  rows.slice(0, 400).forEach(function(a){
+    h += '<tr class="r" data-id="' + esc(a.account_id) + '"><td class="nm">' + esc(a.name) + (a.former_names ? '<small>formerly ' + esc(a.former_names) + '</small>' : '') + (a.city ? '<small>' + esc([a.address1, a.city].filter(Boolean).join(", ")) + '</small>' : '') + '</td>' +
+      '<td class="muted">' + esc(a.region) + '</td><td><span class="pill ' + pillCls(a.status) + '">' + esc(a.status || "") + '</span></td><td class="muted">' + esc(a.fsm || "") + '</td><td class="muted">' + esc(a.bc_customer_no || "") + '</td>' +
+      '<td>' + (isTrue(a.verified) ? '<span class="pill act">Verified</span>' : '<span class="pill unv">Not yet</span>') + '</td>' +
+      '<td class="muted">' + (isTrue(a.in_act_key) ? 'ACT ' : '') + (isTrue(a.in_ledger_key) ? 'Ledger' : '') + '</td></tr>';
+  });
+  h += '</tbody></table>' + (rows.length > 400 ? '<div class="empty">Showing the first 400. Narrow the search to see the rest.</div>' : '');
+  $("list").innerHTML = h;
+  $("list").querySelectorAll("tr.r").forEach(function(tr){ tr.addEventListener("click", function(){ var a = ROWS.filter(function(x){ return x.account_id === tr.getAttribute("data-id"); })[0]; if(a) openDrawer(a); }); });
+}
+
+/* ---------- vendor gap: IC names in the Excel Keys not in the vendor directory ---------- */
+function norm(s){ return String(s || "").toLowerCase().replace(/&/g, "and").replace(/\b(llc|inc|corp|ltd|co)\b\.?/g, "").replace(/[^a-z0-9]+/g, ""); }
+function gap(){
+  if(!CTX || !CTX.lists || !CTX.vendors){ $("gap").innerHTML = ""; return; }
+  var have = {}; CTX.vendors.forEach(function(v){ have[norm(v.name)] = 1; if(v.legal) have[norm(v.legal)] = 1; });
+  ACT.FIXED_ICS.forEach(function(x){ have[norm(x)] = 1; });
+  var h = "";
+  ACT.REGIONS.forEach(function(region){
+    var miss = (CTX.lists.key_ics[region] || []).filter(function(n){ return !have[norm(n)]; });
+    if(!miss.length) return;
+    h += '<h3>' + esc(region) + ': ' + miss.length + ' IC name' + (miss.length === 1 ? '' : 's') + ' from the Excel Keys not in the vendor directory</h3>' +
+      '<div class="note">These came from the IC dropdowns of the workbooks. They are not offered on the entry form until they are in the CW Vendor Directory. Add the ones that are real vendors (they land as In Progress) and leave the ones that were typos or one-offs.</div>' +
+      '<div class="chips">' + miss.map(function(n){ return '<span class="chip">' + esc(n) + '<button type="button" data-n="' + esc(n) + '" data-r="' + esc(region) + '">Add</button></span>'; }).join("") + '</div>';
+  });
+  $("gap").innerHTML = h || '<div class="note">Every IC name from the Excel Keys is in the vendor directory.</div>';
+  $("gap").querySelectorAll("button").forEach(function(b){ b.addEventListener("click", function(){
+    if(!who()){ toast("Put your name in 'Working as' first.", "err"); return; }
+    b.disabled = true; b.textContent = "Adding...";
+    api({ kind: "vd_act_vendor_quick", dba_name: b.getAttribute("data-n"), region: b.getAttribute("data-r"), service_types: "janitorial", context: "Account Directory gap report" }).then(function(r){
+      if(r && r.ok){ CTX.vendors.push({ id: r.vendor_id, name: r.name, region: r.region, status: r.status }); toast("Added " + r.name + " as " + r.vendor_id); gap(); }
+      else if(r && r.duplicate){ toast("Already in the directory as " + r.name + " (" + r.vendor_id + ")."); CTX.vendors.push({ id: r.vendor_id, name: b.getAttribute("data-n"), region: r.region, status: r.status }); gap(); }
+      else { b.disabled = false; b.textContent = "Add"; toast((r && r.error) || "Could not add.", "err"); }
+    });
+  }); });
+}
+
+/* ---------- drawer ---------- */
+var CUR = null;
+var EDIT = ["name", "status", "fsm", "bc_customer_no", "relationship_js", "industry", "address1", "address2", "city", "state", "zip", "contact_name", "contact_email", "notes"];
+var LABEL = { name: "Account name", status: "Status", fsm: "FSM", bc_customer_no: "BC customer number", relationship_js: "CRM relationship type", industry: "Industry", address1: "Address", address2: "Address 2", city: "City", state: "State", zip: "ZIP", contact_name: "Decision maker", contact_email: "Decision maker email", notes: "Notes" };
+function openDrawer(a){
+  CUR = a; var isNew = !a.account_id;
+  var d = $("drawer");
+  var h = '<div class="dh"><h3>' + (isNew ? 'Add an account' : esc(a.name)) + '</h3>' + (!isNew ? (isTrue(a.verified) ? '<span class="pill act">Verified</span>' : '<span class="pill unv">Needs verification</span>') : '') + '<button class="x" type="button">&times;</button></div><div class="db">';
+  if(!isNew) h += '<div class="meta"><b>' + esc(a.account_id) + '</b> · ' + esc(a.region) + (a.crm_id ? ' · CRM ' + esc(a.crm_id.slice(0, 8)) + '…' : '') + '<br>Added ' + esc(a.added || "") + ' by ' + esc(a.added_by || "?") + ' · ' + esc(a.source || "") + (a.updated && a.updated !== a.added ? '<br>Updated ' + esc(a.updated) + ' by ' + esc(a.updated_by || "?") : '') +
+    (isTrue(a.verified) ? '<br>Verified ' + esc(a.verified_at || "") + ' by ' + esc(a.verified_by || "") : '<br>Not yet verified against CRM / Business Central') + (a.former_names ? '<br>Former names: ' + esc(a.former_names) : '') +
+    (isTrue(a.in_act_key) || isTrue(a.in_ledger_key) ? '<br>Was in the Excel ' + [isTrue(a.in_act_key) ? 'ACT Key' : '', isTrue(a.in_ledger_key) ? 'Ledger Key' : ''].filter(Boolean).join(' and ') : '') + '</div>';
+  else h += '<div class="meta">Use the name exactly as it reads in CRM and Business Central. The other side is emailed to confirm it, and the account can be used on entries right away.</div>';
+  h += '<div class="frm-grid">';
+  if(isNew) h += '<div class="fld"><label>Region</label><select id="a_region"><option>Las Vegas</option><option>Northern Nevada</option></select></div>';
+  EDIT.forEach(function(k){
+    var wide = (k === "name" || k === "notes" || k === "address1") ? " wide" : "";
+    h += '<div class="fld' + wide + '"><label>' + esc(LABEL[k]) + '</label>';
+    if(k === "status") h += '<select id="a_' + k + '">' + ["Active", "Prospect", "Past Client", "Inactive", "Vendor", "Needs review", "Other"].map(function(s){ return '<option' + (s === (a.status || "Active") ? ' selected' : '') + '>' + s + '</option>'; }).join("") + '</select>';
+    else if(k === "fsm") h += '<select id="a_fsm"><option value="">Pick one</option>' + ACT.fsmsFor(a.region || "Las Vegas").map(function(f){ return '<option' + (f === a.fsm ? ' selected' : '') + '>' + esc(f) + '</option>'; }).join("") + (a.fsm && ACT.fsmsFor(a.region || "Las Vegas").indexOf(a.fsm) < 0 ? '<option selected>' + esc(a.fsm) + '</option>' : '') + '</select>';
+    else if(k === "notes") h += '<textarea id="a_notes" rows="2">' + esc(a.notes || "") + '</textarea>';
+    else h += '<input id="a_' + k + '" value="' + esc(a[k] || "") + '">';
+    h += '</div>';
+  });
+  h += '</div><div class="err" id="a_err"></div></div>' +
+    '<div class="df"><button class="btn solid" id="a_save" type="button">' + (isNew ? 'Add account' : 'Save changes') + '</button>' +
+    (!isNew && !isTrue(a.verified) ? '<button class="btn" id="a_verify" type="button">Mark verified</button>' : '') +
+    (!isNew && isTrue(a.verified) ? '<button class="btn" id="a_unverify" type="button">Un-verify</button>' : '') +
+    '<span style="flex:1"></span>' + (!isNew ? '<button class="btn" id="a_hide" type="button" title="Hides it from the lists; the row stays in the sheet">Hide</button>' : '') + '</div>';
+  d.innerHTML = h;
+  d.querySelector(".x").onclick = closeDrawer;
+  $("shade").classList.remove("hidden"); d.classList.add("open"); $("shade").onclick = closeDrawer;
+  $("a_save").onclick = function(allowDup){
+    if(!who()){ $("a_err").textContent = "Put your name in 'Working as' first."; return; }
+    var acc = {}; EDIT.forEach(function(k){ acc[k] = ($("a_" + k).value || "").trim(); });
+    if(!acc.name){ $("a_err").textContent = "Account name is required."; return; }
+    if(isNew) acc.region = $("a_region").value; else acc.account_id = a.account_id;
+    $("a_save").disabled = true; $("a_err").textContent = "Saving...";
+    api({ kind: "vd_act_account_save", account: acc, source: "BOM Hub", context: "Account Directory", allow_duplicate: allowDup === true }).then(function(r){
+      $("a_save").disabled = false;
+      if(r && r.duplicate){ $("a_err").innerHTML = esc(r.error) + ' <button class="mini" type="button" id="a_dup">Add anyway</button>'; $("a_dup").onclick = function(){ $("a_save").onclick(true); }; return; }
+      if(!r || !r.ok){ $("a_err").textContent = (r && r.error) || "Could not save."; return; }
+      toast((isNew ? "Added " : "Saved ") + acc.name + (r.renamed ? " (renamed; notice sent)" : "") + (r.notified && r.notified.to && !r.renamed && isNew ? ". Notice sent" + (r.notified.test ? " (test mode)" : "") + "." : ""));
+      closeDrawer(); load();
+    }).catch(function(){ $("a_save").disabled = false; $("a_err").textContent = "Could not reach the server."; });
+  };
+  if($("a_verify")) $("a_verify").onclick = function(){ if(!who()){ $("a_err").textContent = "Put your name in 'Working as' first."; return; } api({ kind: "vd_act_account_verify", account_id: a.account_id, verified: true }).then(function(r){ if(r && r.ok){ toast("Verified " + a.name); closeDrawer(); load(); } else $("a_err").textContent = (r && r.error) || "Could not save."; }); };
+  if($("a_unverify")) $("a_unverify").onclick = function(){ api({ kind: "vd_act_account_verify", account_id: a.account_id, verified: false }).then(function(r){ if(r && r.ok){ toast("Un-verified " + a.name); closeDrawer(); load(); } }); };
+  if($("a_hide")) $("a_hide").onclick = function(){ if(!confirm("Hide " + a.name + " from the lists? The row stays in the sheet (hide = TRUE).")) return; api({ kind: "vd_act_account_save", account: { account_id: a.account_id, hide: true } }).then(function(r){ if(r && r.ok){ toast("Hidden"); closeDrawer(); load(); } }); };
+}
+function closeDrawer(){ $("drawer").classList.remove("open"); $("shade").classList.add("hidden"); CUR = null; }
+document.addEventListener("keydown", function(e){ if(e.key === "Escape") closeDrawer(); });
+
+BOM.init({ page: "act", onReady: function(){
+  $("who").value = BOM.who(); $("who").addEventListener("change", function(){ BOM.setWho($("who").value.trim()); });
+  $("f_region").addEventListener("click", function(e){ var b = e.target.closest("button"); if(!b) return; F.region = b.getAttribute("data-v"); setSeg("f_region", F.region); render(); });
+  ["f_status", "f_ver", "f_key"].forEach(function(id){ $(id).addEventListener("change", function(){ F[id.slice(2)] = $(id).value; render(); }); });
+  $("q").addEventListener("input", function(){ F.q = $("q").value.trim(); render(); });
+  $("reload").addEventListener("click", function(){ boot(); });
+  $("addbtn").addEventListener("click", function(){ openDrawer({ region: F.region || "Las Vegas", status: "Active" }); });
+  boot();
+} });
+function boot(){ BOM.api({ kind: "vd_act_context" }).then(function(r){ if(r && r.ok){ CTX = r; ACT.setContext(r); } ACT.injectCss(); load(); }); }
+</script>
+</body>
+</html>

@@ -1,4 +1,4 @@
-/* CW BOM Hub shared script. Build 2026-09-05b (one unlock per device via cw-auth.js; COI Requests menu).
+/* CW BOM Hub shared script. Build 2026-09-05c (Account Changes menu: digital ACT and Ledger).
    Gate, header, cascading nav, webhook helper, Asana project registry.
    Every page: <link bom.css> ... <div id="gate"> + <div id="app" class="hidden">, then
    this file, then BOM.init({page:'...'}). Data lives in Google Sheets through the
@@ -79,6 +79,17 @@ var MENU = [
     {ghead:"Records"},
     {label:"Background Checks on File (Sheet)", href:SHEET, tag:"Sheet"},
     {label:"Verified First (portal)", href:"https://portal.verifiedfirst.com/#/dashboard", tag:"Site"}
+  ]},
+  { label:"Account Changes", icon:"sheet", page:"act", items:[
+    {label:"ACT and Ledger Documents", href:"act-document.html", tag:"Hub"},
+    {label:"Accounting Queue (not yet checked off)", href:"accounting-queue.html", tag:"Hub"},
+    {label:"Log an Account Change", href:OPS + "act-entry.html", tag:"Ops Hub"},
+    {ghead:"Directories"},
+    {label:"Account Directory", href:"accounts.html", tag:"Hub"},
+    {label:"Active Vendors (Ops Hub)", href:OPS + "vendors.html#/lv/janitorial", tag:"Ops Hub"},
+    {ghead:"Records"},
+    {label:"CW Account Changes (Sheet)", href:"https://docs.google.com/spreadsheets/d/ACT_SHEET_ID_TBD/edit", tag:"Sheet"},
+    {label:"Load the Excel history (one time)", href:"act-import.html", tag:"Hub"}
   ]},
   { label:"COI Requests", icon:"sheet", page:"coi", items:[
     {label:"Request Log & Status", href:"coi-log.html", tag:"Hub"},

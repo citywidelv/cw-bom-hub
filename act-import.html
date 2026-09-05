@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Account Changes Import | CW BOM Hub</title>
+<!-- build 2026-09-05a. One-time loader for the Excel history. Drop the seed file
+(cw-account-changes-seed.json, built from the four workbooks on Sep 5 2026), review the
+counts, and run. Creates the "CW Account Changes" sheet if needed (vd_act_setup), then
+loads each tab in chunks (vd_act_seed, mode replace on the first chunk of every tab, so
+running it twice replaces rather than duplicates). Team passcode only. The seed file is
+not in any repo; it lives in TJ's Key Reports folder. -->
+<link rel="stylesheet" href="bom.css">
+<link rel="stylesheet" href="https://citywidelv.github.io/cw-base.css">
+<style>
+.drop{border:2px dashed var(--border);border-radius:12px;padding:30px;text-align:center;color:var(--grey);font-size:13px;background:#fff;cursor:pointer}
+.drop.on{border-color:var(--red);background:#FFF6F6}
+.drop input{display:none}
+.counts{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:6px 16px;font-size:12.5px;margin:14px 0}
+.counts b{float:right}
+.log{font-family:Menlo,Consolas,monospace;font-size:11.5px;background:var(--black);color:#eee;border-radius:8px;padding:12px;max-height:360px;overflow:auto;white-space:pre-wrap;line-height:1.5}
+.log .ok{color:#7ED8A5}.log .err{color:#FF8A8A}
+.bar{height:8px;background:var(--light);border-radius:4px;overflow:hidden;margin:10px 0}
+.bar div{height:100%;background:var(--red);width:0;transition:width .2s}
+.warn{background:var(--gold-bg);border:1px solid #F3DFA0;border-radius:8px;padding:10px 14px;font-size:12.5px;margin:12px 0}
+</style>
+</head>
+<body>
+<div id="gate" class="gate"></div>
+<div id="app" class="hidden">
+<header class="head" id="bomhead"></header>
+<section class="hero slim"><div class="wrap"><div class="htext"><div class="kick">Business Operations Management</div><h1>Account Changes Import</h1><p>Load the Excel history into the CW Account Changes sheet. Run once; running again replaces what it loaded.</p></div></div></section>
+<div class="wrap" style="margin-top:20px">
+<div class="card" style="padding:18px 20px">
+<div class="warn" id="status">Checking the sheet...</div>
+<label class="drop" id="drop">Drop <b>cw-account-changes-seed.json</b> here, or click to choose it.<input type="file" id="file" accept=".json,application/json"></label>
+<div id="review" class="hidden">
+<div class="counts" id="counts"></div>
+<p style="font-size:12.5px;color:var(--grey)">Every tab named in the file is cleared and reloaded from the file, including anything the team logged there since. Run it once, before launch. If it has to run again later, read the Change Log first and re-enter anything logged after the first import.</p>
+<div class="bar"><div id="prog"></div></div>
+<button class="btn solid" id="run" type="button">Run the import</button>
+<button class="btn" id="setup" type="button">Just create the sheet and tabs</button>
+</div>
+<div class="log" id="log" style="margin-top:14px">Ready.</div>
+</div>
+</div>
+</div>
+<script src="https://citywidelv.github.io/cw-ops-desk/cw-auth.js"></script>
+<script src="bom-shared.js"></script>
+<script>
+var SEED = null;
+function $(id){ return document.getElementById(id); }
+function log(m, cls){ var l = $("log"); l.innerHTML += '\n<span class="' + (cls || "") + '">' + BOM.esc(m) + '</span>'; l.scrollTop = l.scrollHeight; }
+function chunk(a, n){ var out = []; for(var i = 0; i < a.length; i += n) out.push(a.slice(i, i + n)); return out; }
+function setCounts(){
+  var c = SEED.counts, h = "";
+  Object.keys(c).forEach(function(t){ h += '<div>' + BOM.esc(t) + '<b>' + c[t] + '</b></div>'; });
+  Object.keys(SEED.accounts).forEach(function(t){ h += '<div>' + BOM.esc(t) + '<b>' + SEED.accounts[t].length + '</b></div>'; });
+  h += '<div>Lists<b>' + SEED.lists.length + '</b></div><div>Next entry id<b>AC-' + String(SEED.next_entry_id).padStart(6, "0") + '</b></div><div>Built<b>' + BOM.esc(SEED.built) + '</b></div>';
+  $("counts").innerHTML = h; $("review").classList.remove("hidden");
+}
+function readFile(f){
+  var r = new FileReader();
+  r.onload = function(){ try { SEED = JSON.parse(r.result); if(!SEED.entry_tabs) throw new Error("not a seed file"); log("Loaded " + f.name + " (" + Math.round(f.size / 1024) + " KB)", "ok"); setCounts(); } catch(e){ log("Could not read that file: " + e.message, "err"); } };
+  r.readAsText(f);
+}
+$("file").addEventListener("change", function(){ if($("file").files[0]) readFile($("file").files[0]); });
+["dragenter", "dragover"].forEach(function(ev){ $("drop").addEventListener(ev, function(e){ e.preventDefault(); $("drop").classList.add("on"); }); });
+["dragleave", "drop"].forEach(function(ev){ $("drop").addEventListener(ev, function(e){ e.preventDefault(); $("drop").classList.remove("on"); }); });
+$("drop").addEventListener("drop", function(e){ if(e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]); });
+
+function step(p){ return BOM.api(p).then(function(r){ if(!r || !r.ok) throw new Error((r && r.error) || "no answer"); return r; }); }
+var total = 0, done = 0;
+function bump(n){ done += n; $("prog").style.width = Math.min(100, Math.round(done / total * 100)) + "%"; }
+$("setup").addEventListener("click", function(){ log("Creating the sheet and tabs..."); step({ kind: "vd_act_setup" }).then(function(r){ log("Sheet ready: " + r.url, "ok"); log("Tabs: " + r.tabs.join(", ")); }).catch(function(e){ log("Setup failed: " + e.message, "err"); }); });
+$("run").addEventListener("click", function(){
+  if(!SEED) return;
+  if(!confirm("Run the import now? Every imported tab is replaced with the file's rows.")) return;
+  $("run").disabled = true;
+  var jobs = [];
+  Object.keys(SEED.entry_tabs).forEach(function(t){ chunk(SEED.entry_tabs[t], 100).forEach(function(rows, i){ jobs.push({ tab: t, rows: rows, first: i === 0 }); }); if(!SEED.entry_tabs[t].length) jobs.push({ tab: t, rows: [], first: true }); });
+  Object.keys(SEED.accounts).forEach(function(t){ chunk(SEED.accounts[t], 100).forEach(function(rows, i){ jobs.push({ tab: t, rows: rows, first: i === 0 }); }); });
+  chunk(SEED.lists, 150).forEach(function(rows, i){ jobs.push({ tab: "Lists", rows: rows, first: i === 0 }); });
+  total = jobs.reduce(function(s, j){ return s + Math.max(j.rows.length, 1); }, 0) + 1; done = 0;
+  log("Creating the sheet and tabs...");
+  step({ kind: "vd_act_setup" }).then(function(r){
+    log("Sheet ready: " + r.url, "ok"); bump(1);
+    var i = 0;
+    function next(){
+      if(i >= jobs.length){
+        return step({ kind: "vd_act_seed", tab: "Lists", rows: [], next_entry_id: SEED.next_entry_id, import_done: "seed built " + SEED.built }).then(function(){
+          log("Done. next_entry_id set to " + SEED.next_entry_id + ".", "ok"); log("Open act-document.html and check a few months against the Excel.", "ok"); $("status").textContent = "Import finished."; });
+      }
+      var j = jobs[i++];
+      return step({ kind: "vd_act_seed", tab: j.tab, rows: j.rows, mode: j.first ? "replace" : "append" }).then(function(r){
+        log((j.first ? "[replace] " : "[append]  ") + j.tab + ": +" + r.appended + (r.first_row ? " from row " + r.first_row : ""));
+        bump(Math.max(j.rows.length, 1));
+        return next();
+      });
+    }
+    return next();
+  }).catch(function(e){ log("Stopped: " + e.message, "err"); $("run").disabled = false; });
+});
+BOM.init({ page: "act", onReady: function(){
+  BOM.api({ kind: "vd_act_context" }).then(function(r){
+    if(r && r.ok){ $("status").innerHTML = "Sheet: <a href='" + BOM.esc(r.sheet_url) + "' target='_blank' rel='noopener'>" + BOM.esc(r.sheet_url) + "</a>" + (r.import_done ? " · import already ran: " + BOM.esc(r.import_done) : " · history not loaded yet") + (r.who === "bom" ? " · you are on the BOM passcode; the import needs the team passcode" : ""); }
+    else $("status").textContent = "No CW Account Changes sheet yet. The import creates it.";
+  });
+} });
+</script>
+</body>
+</html>
