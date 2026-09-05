@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>COI Requests | CW BOM Hub</title>
-<!-- build 2026-09-05a. The Business Operations Manager's log of customer certificate of
+<!-- build 2026-09-05b (test flag read case-insensitively). The Business Operations Manager's log of customer certificate of
 insurance requests. Reads the "COI Requests" tab of the CW Solicitations sheet through
 CoiRequest.gs (kinds vd_coi_rows, vd_coi_status). Status moves Requested -> Sent to broker
 -> Received -> Delivered to customer from the dropdown on each row; notes, the delivered
@@ -146,6 +146,7 @@ var OPEN = {};
 var esc = BOM.esc;
 function $(id){ return document.getElementById(id); }
 function today(){ var d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+function isTest(r){ return String(r.test || "").toUpperCase() === "TRUE"; }
 function isLate(r){ return r.needed_by && r.needed_by < today() && r.status !== "Delivered to customer"; }
 function pillCls(s){ return s === "Sent to broker" ? "brk" : s === "Received" ? "rcv" : s === "Delivered to customer" ? "dlv" : "req"; }
 function who(){ return ($("who").value || "").trim() || BOM.who() || ""; }
@@ -161,7 +162,7 @@ function load(){
 }
 
 function stats(){
-  var live = ROWS.filter(function(r){ return r.test !== "TRUE"; });
+  var live = ROWS.filter(function(r){ return !isTest(r); });
   var c = { req:0, brk:0, rcv:0, dlv:0, late:0 };
   live.forEach(function(r){
     if(r.status === "Requested") c.req++; else if(r.status === "Sent to broker") c.brk++; else if(r.status === "Received") c.rcv++; else if(r.status === "Delivered to customer") c.dlv++;
@@ -185,7 +186,7 @@ function setSeg(id, v){
 function visible(){
   var q = F.q.toLowerCase();
   return ROWS.filter(function(r){
-    if(!F.test && r.test === "TRUE") return false;
+    if(!F.test && isTest(r)) return false;
     if(F.mk && r.market !== F.mk) return false;
     if(F.status === "open"){ if(r.status === "Delivered to customer") return false; }
     else if(F.status && r.status !== F.status) return false;
@@ -200,7 +201,7 @@ function visible(){
 
 function render(){
   var rows = visible();
-  $("showing").innerHTML = 'Showing <b>' + rows.length + '</b> of ' + ROWS.filter(function(r){ return F.test || r.test !== "TRUE"; }).length + ' requests' + (F.late ? ' <b>past their needed-by date</b>' : '') + '. Click a row for the checklist, the customer\'s email, and notes.';
+  $("showing").innerHTML = 'Showing <b>' + rows.length + '</b> of ' + ROWS.filter(function(r){ return F.test || !isTest(r); }).length + ' requests' + (F.late ? ' <b>past their needed-by date</b>' : '') + '. Click a row for the checklist, the customer\'s email, and notes.';
   if(!rows.length){ $("list").innerHTML = '<div class="empty">Nothing here. ' + (ROWS.length ? 'Change the filters above.' : 'The first request from the Ops Hub page will show up here.') + '</div>'; return; }
   var html = '<table class="tbl"><thead><tr><th></th><th>Request</th><th>Customer</th><th>Market</th><th>Needed by</th><th>Status</th><th>Requested by</th><th>Files</th></tr></thead><tbody>';
   rows.forEach(function(r){
@@ -208,7 +209,7 @@ function render(){
     var links = (r.sample_links || "").split(/\n+/).filter(Boolean);
     html += '<tr class="req' + (open ? ' open' : '') + '" data-id="' + esc(r.request_id) + '">' +
       '<td class="chev">' + (open ? '&#9660;' : '&#9654;') + '</td>' +
-      '<td class="id">' + esc(r.request_id) + (r.test === "TRUE" ? ' <span class="pill test">Test</span>' : '') + '<small>' + esc((r.submitted || "").slice(0, 16)) + '</small></td>' +
+      '<td class="id">' + esc(r.request_id) + (isTest(r) ? ' <span class="pill test">Test</span>' : '') + '<small>' + esc((r.submitted || "").slice(0, 16)) + '</small></td>' +
       '<td class="cust">' + esc(r.account_name) + '<small>Holder: ' + esc(r.holder_name) + '</small></td>' +
       '<td><span class="pill ' + (r.market === "Northern Nevada" ? 'nnv' : 'lv') + '">' + esc(r.market === "Northern Nevada" ? "NNV" : "LV") + '</span></td>' +
       '<td class="muted">' + (r.needed_by ? BOM.fmtDate(r.needed_by) : '<span style="color:#bbb">none</span>') + (isLate(r) ? ' <span class="pill late">Late</span>' : '') + '</td>' +

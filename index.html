@@ -254,7 +254,7 @@ function loadAsana(){
 function loadCoi(){
   api({ kind:"vd_coi_rows" }).then(function(r){
     var el = document.getElementById("coisum"); if(!el || !r || !r.ok) return;
-    var rows = (r.rows || []).filter(function(x){ return x.test !== "TRUE"; });
+    var rows = (r.rows || []).filter(function(x){ return String(x.test || "").toUpperCase() !== "TRUE"; });
     var open = rows.filter(function(x){ return x.status !== "Delivered to customer"; }).length;
     var atb = rows.filter(function(x){ return x.status === "Sent to broker"; }).length;
     el.textContent = open ? open + " open" + (atb ? ", " + atb + " at the broker" : "") + "." : (rows.length ? "Nothing open." : "");
