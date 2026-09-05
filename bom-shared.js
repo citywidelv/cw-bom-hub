@@ -172,7 +172,10 @@ function renderHeader(page){
     if(!wasOpen){
       dd.classList.add("show"); btn.classList.add("open");
       if(window.matchMedia && matchMedia("(max-width:820px)").matches){
+        /* phones: move the open menu onto <body> (WebKit clips position:fixed inside a scrolling nav bar) */
         var r = btn.getBoundingClientRect(); dd.style.top = Math.round(r.bottom + 6) + "px";
+        if(!dd._home) dd._home = dd.parentElement;
+        document.body.appendChild(dd); dd.classList.add("portal");
       } else dd.style.top = "";
     }
   };
@@ -181,14 +184,18 @@ function renderHeader(page){
     if(window.CWAuth) CWAuth.signOut(); else location.reload();
   });
   document.addEventListener("click", function(e){
-    if(e.target && e.target.closest && e.target.closest(".nitem")) return;
+    if(e.target && e.target.closest && (e.target.closest(".nitem") || e.target.closest(".nmenu"))) return;
     closeMenus();
   });
   document.addEventListener("keydown", function(e){ if(e.key === "Escape") closeMenus(); });
   window.addEventListener("resize", closeMenus);
 }
 function closeMenus(){
-  document.querySelectorAll(".nmenu.show").forEach(function(d){ d.classList.remove("show"); d.style.top = ""; });
+  document.querySelectorAll(".nmenu.show").forEach(function(d){
+    d.classList.remove("show"); d.style.top = "";
+    if(d._home && d.parentElement !== d._home) d._home.appendChild(d);
+    d.classList.remove("portal");
+  });
   document.querySelectorAll(".nbtn.open").forEach(function(b){ b.classList.remove("open"); });
 }
 

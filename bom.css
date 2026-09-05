@@ -31,7 +31,7 @@ border-radius:18px;padding:0 14px;min-height:36px;display:inline-flex;align-item
 nav.mainnav{background:var(--black);border-bottom:3px solid var(--red)}
 .nav-in{max-width:1180px;margin:0 auto;padding:0 12px;display:flex;align-items:stretch;gap:2px;flex-wrap:wrap}
 .nitem{position:relative;flex:none}
-.nbtn{background:none;border:none;color:#fff;font-size:12px;min-height:44px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;
+.nbtn{background:none;border:none;color:#fff;font-size:12px;min-height:44px;touch-action:manipulation;-webkit-tap-highlight-color:rgba(210,39,48,.25);font-weight:700;letter-spacing:.04em;text-transform:uppercase;
 padding:12px 13px;display:flex;align-items:center;gap:7px;white-space:nowrap;cursor:pointer;text-decoration:none}
 .nbtn svg{opacity:.9;flex:none}
 .nbtn .caret{font-size:8px;opacity:.8}
@@ -194,7 +194,7 @@ url('https://citywidelv.github.io/cw-vendor-hub/images/bldg-campus.jpg') center/
 .nav-in{flex-wrap:nowrap;overflow-x:auto;padding:0 6px;scrollbar-width:none;-webkit-overflow-scrolling:touch}
 .nav-in::-webkit-scrollbar{display:none}
 .nbtn{padding:0 10px;font-size:12px;gap:5px}
-.nmenu{position:fixed;left:10px;right:10px;max-width:none;border-radius:10px;max-height:65vh;overflow-y:auto}
+.nmenu{position:fixed;left:10px;right:10px;max-width:none;border-radius:10px;max-height:65vh;overflow-y:auto;z-index:120}
 .head .t,.head .badge{display:none}
 .hero .wrap{padding-bottom:84px}
 .quick{margin-top:-36px}
