@@ -1,4 +1,4 @@
-/* CW Account Changes shared script. Build 2026-09-05a.
+/* CW Account Changes shared script. Build 2026-09-05b (live vendors first in the IC list).
    Section metadata, field types, the entry form builder, the combobox, and the
    display helpers used by act-entry.html (Ops Hub), act-document.html,
    accounting-queue.html and accounts.html (BOM Hub). Loaded from
@@ -124,9 +124,15 @@ function accountsFor(region){
   return (CTX && CTX.accounts || []).filter(function(a){ return a.region === region; })
     .sort(function(a, b){ return a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1; });
 }
+var LIVE_STATUS = { "Active": 0, "Waiting for Account": 1, "In Progress": 2 };
 function vendorsFor(region){
+  /* Live vendors (Active, Waiting for Account, In Progress) list first; prospects and inactive after. */
   var list = (CTX && CTX.vendors || []).filter(function(v){ return v.region === region || v.region === "Both"; });
-  list.sort(function(a, b){ return a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1; });
+  list.sort(function(a, b){
+    var ra = LIVE_STATUS[a.status] === undefined ? 9 : LIVE_STATUS[a.status], rb = LIVE_STATUS[b.status] === undefined ? 9 : LIVE_STATUS[b.status];
+    if(ra !== rb) return ra - rb;
+    return a.name.toLowerCase() < b.name.toLowerCase() ? -1 : 1;
+  });
   return list;
 }
 function fsmsFor(region){ return (CTX && CTX.lists && CTX.lists.fsms && CTX.lists.fsms[region]) || []; }
