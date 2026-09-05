@@ -11,7 +11,7 @@ var NAMEKEY = "cwBomName";
 var PORTAL = "https://citywidelv.github.io/";
 var OPS = "https://citywidelv.github.io/cw-ops-desk/";
 var VS = "https://citywidelv.github.io/cw-vendor-hub/";
-var SHEET = "https://docs.google.com/spreadsheets/d/1kHRyeQzDsi-bnfE5YpD_KPV17GeD5aJ_5vrDQGU_s-0/edit";
+var SHEET = "https://docs.google.com/spreadsheets/d/1kHRyeQzDsi-bnfE5YpD_KPV17GeD5aJ_5vrDQGU_s-0/edit#gid=12628813";
 var LOGO = "https://emailer.emfluence.com/clients/citywide/uploadedfiles/signature_logo.png";
 
 /* Asana. The Business Operations Management team; projects are fetched live from the
@@ -84,7 +84,7 @@ var MENU = [
     {label:"Request Log & Status", href:"coi-log.html", tag:"Hub"},
     {label:"New COI Request for a Customer", href:OPS + "coi-request.html", tag:"Ops Hub"},
     {ghead:"Records"},
-    {label:"COI Requests (Sheet tab)", href:"https://docs.google.com/spreadsheets/d/1ymbqR7LMvA7sbgZe2Ro5o2dNiXhP08Tn9Hw1b-H5AeQ/edit", tag:"Sheet"},
+    {label:"COI Requests (Sheet tab)", href:"https://docs.google.com/spreadsheets/d/1ymbqR7LMvA7sbgZe2Ro5o2dNiXhP08Tn9Hw1b-H5AeQ/edit#gid=1472416765", tag:"Sheet"},
     {label:"Vendor COIs Coming In (Ops Hub)", href:OPS + "insurance.html", tag:"Ops Hub"},
     {ghead:"Broker Portal"},
     {label:"InsurLink (Vertafore)", href:"https://insurlink.vertafore.com/end-insured/2260313c6a34459c8a098ede23d21fb7/2094911/overview", tag:"Site"}
