@@ -32,7 +32,7 @@ nav.mainnav{background:var(--black);border-bottom:3px solid var(--red)}
 .nav-in{max-width:1180px;margin:0 auto;padding:0 12px;display:flex;align-items:stretch;gap:2px;flex-wrap:wrap}
 .nitem{position:relative;flex:none}
 .nbtn{background:none;border:none;color:#fff;font-size:12px;min-height:44px;touch-action:manipulation;-webkit-tap-highlight-color:rgba(210,39,48,.25);font-weight:700;letter-spacing:.04em;text-transform:uppercase;
-padding:12px 13px;display:flex;align-items:center;gap:7px;white-space:nowrap;cursor:pointer;text-decoration:none}
+padding:12px 9px;display:flex;align-items:center;gap:7px;white-space:nowrap;cursor:pointer;text-decoration:none}
 .nbtn svg{opacity:.9;flex:none}
 .nbtn .caret{font-size:8px;opacity:.8}
 .nbtn:hover,.nbtn.open,.nbtn.here{background:var(--red)}
