@@ -129,6 +129,10 @@ var MENU = [
     {label:"Office Management board", href:asanaUrl("1211522761691094"), tag:"Asana"}
   ]},
   { label:"Team & Admin", icon:"home", page:"emails", items:[
+    {ghead:"Power BI"},
+    {label:"Reports and targets", href:"powerbi.html", tag:"Hub"},
+    {label:"FSM and Director", href:OPS + "powerbi.html", tag:"Ops Hub"},
+    {label:"Sales", href:"https://citywidelv.github.io/sales-hub/powerbi.html", tag:"Sales Hub"},
     {label:"Team Emails by Position", href:"team-emails.html", tag:"Hub"},
     {ghead:"Hubs"},
     {label:"Nevada Team Portal", href:PORTAL},
